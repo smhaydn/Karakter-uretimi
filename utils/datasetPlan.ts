@@ -1,70 +1,57 @@
 import { DatasetItem } from "../types";
 
 // Distribution Logic:
-// 1-5: Anatomy Structure (Critical for LoRA)
-// 6-10: Extreme Close-up
-// 11-25: Portrait
-// 26-33: Medium Shot
-// 34-40: Full Body
-// 41-45: Cinematic/Artistic
-// Total: 45 Images
+// 1-3: Structural Anchors (White Tank / Studio) - Essential for basic face ID.
+// 4-45: REAL LIFE LIFESTYLE (No Fantasy, No Neon). 
+// Focus: Authentic textures (Cotton, Denim, Silk), Real environments, Natural lighting.
 
 export const DATASET_PLAN: DatasetItem[] = [
-  // --- ANATOMY STRUCTURE (1-5) --- 
-  // Refined for Virtual Influencers: Ensuring hair presence while showing face structure.
-  { id: 1, shot: "Front View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Passport style photo, perfectly symmetrical face, looking directly at camera, hair tucked behind ears to show jawline, neutral background, 50mm lens" },
-  { id: 2, shot: "Side Profile Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "90 degree side view of face, distinct nose shape, jawline definition, hair pulled back or tucked, neutral background" },
+  // --- ANCHOR STRUCTURE (1-3) --- 
+  { id: 1, shot: "Front View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Passport style photo, perfectly symmetrical face, looking directly at camera, hair tucked behind ears, neutral background" },
+  { id: 2, shot: "Side Profile Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "90 degree side view of face, distinct nose shape, jawline definition, hair pulled back, neutral background" },
   { id: 3, shot: "Back View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "View from behind showing hair structure and length clearly, neck and shoulder width, no face visible, neutral background" },
-  { id: 4, shot: "3/4 Angle Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "45 degree angle turn, both eyes visible but one slightly further, hair styling visible but off-face, neutral background" },
-  { id: 5, shot: "High Angle Portrait", expression: "Looking up", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Camera above eye level looking down (bird's eye view face), forehead and nose bridge emphasis, cute angle, neutral background" },
 
-  // --- EXTREME CLOSE-UP (6-10) --- Focus: Skin texture, eyes, lips
-  { id: 6, shot: "Extreme Close-up", expression: "Flirty", lighting: "Candlelight", outfit: "Lace choker", description: "Soft warm glow, focus depth very shallow, blurry ears" },
-  { id: 7, shot: "Extreme Close-up", expression: "Neutral", lighting: "Overcast Day", outfit: "Grey hoodie hood", description: "Flat even light, zero makeup look, every freckle visible" },
-  { id: 8, shot: "Extreme Close-up", expression: "Laughing", lighting: "Camera Flash (Direct)", outfit: "Yellow summer top", description: "Harsh direct flash, shiny skin highlights, red-eye reduction style" },
-  { id: 9, shot: "Extreme Close-up", expression: "Neutral", lighting: "Fluorescent Bathroom Light", outfit: "Makeup free look", description: "Greenish tint, unflattering realistic mirror selfie lighting" },
-  { id: 10, shot: "Extreme Close-up", expression: "Shocked", lighting: "Streetlight (Orange)", outfit: "Emerald earrings", description: "Sodium vapor street lamp lighting, grainy night shot" },
-
-  // --- PORTRAIT / HEADSHOT (11-25) --- Focus: Identity, hair, shoulders
-  { id: 11, shot: "Portrait", expression: "Neutral", lighting: "Natural Window Light", outfit: "Beige trench coat", description: "Classic headshot, messy hair, looking out window" },
-  { id: 12, shot: "Portrait", expression: "Smiling", lighting: "Outdoor Sunny", outfit: "Floral sundress", description: "Wind blowing hair across face, squinting slightly from sun" },
-  { id: 13, shot: "Portrait", expression: "Confident", lighting: "Office Overhead Light", outfit: "Navy blue business suit", description: "Generic office lighting, realistic corporate snapshot" },
-  { id: 14, shot: "Portrait", expression: "Neutral", lighting: "Car Headlights", outfit: "Leather biker jacket", description: "Standing on road at night, illuminated by headlights, high contrast" },
-  { id: 15, shot: "Portrait", expression: "Laughing", lighting: "Cafe Window", outfit: "Chunky knit sweater", description: "Through the glass shot, reflections on window, candid moment" },
-  { id: 16, shot: "Portrait", expression: "Serious", lighting: "Low Key (Dark)", outfit: "Black evening gown", description: "Underexposed, silhouette emerging from darkness, moody" },
-  { id: 17, shot: "Portrait", expression: "Neutral", lighting: "Midday Sun (Harsh)", outfit: "White linen shirt", description: "Deep dark shadows under eyes and nose, high summer noon" },
-  { id: 18, shot: "Portrait", expression: "Flirty", lighting: "Sunset", outfit: "Off-shoulder red top", description: "Lens flare washing out colors slightly, romantic vibes" },
-  { id: 19, shot: "Portrait", expression: "Surprised", lighting: "Interior Office", outfit: "Glasses and blouse", description: "Caught off guard, slightly out of focus hand near face" },
-  { id: 20, shot: "Portrait", expression: "Neutral", lighting: "Direct Flash", outfit: "Polka dot vintage dress", description: "Polaroid style, dark background, bright subject, hard shadow behind head" },
-  { id: 21, shot: "Portrait", expression: "Smiling", lighting: "Party Strobe", outfit: "Party dress with sequins", description: "Motion blur background, sharp face, club atmosphere" },
-  { id: 22, shot: "Portrait", expression: "Neutral", lighting: "Moonlight", outfit: "Silk pajamas", description: "Very grainy, blue tint, bedroom setting" },
-  { id: 23, shot: "Portrait", expression: "Laughing", lighting: "Diffused Outdoor", outfit: "Gym tank top", description: "Post-workout, sweaty skin texture, messy hair bun" },
-  { id: 24, shot: "Portrait", expression: "Angry", lighting: "Under lighting (Flashlight)", outfit: "Hooded cloak", description: "Light coming from below chin, spooky storytelling vibe" },
-  { id: 25, shot: "Portrait", expression: "Neutral", lighting: "Subway Fluorescent", outfit: "Casual jacket", description: "Public transport lighting, tired eyes, realistic urban commute" },
-
-  // --- MEDIUM SHOT (26-33) --- Focus: Upper body, hands, pose
-  { id: 26, shot: "Medium Shot", expression: "Neutral", lighting: "Art Gallery Track Lights", outfit: "Minimalist black dress", description: "Spotlight on face, background dark, museum setting" },
-  { id: 27, shot: "Medium Shot", expression: "Smiling", lighting: "Beach Daylight", outfit: "Bikini top and sarong", description: "Wet hair, salt on skin, bright expansive background" },
-  { id: 28, shot: "Medium Shot", expression: "Confident", lighting: "City Neon", outfit: "Denim jacket over hoodie", description: "Purple and blue reflections on jacket, wet pavement" },
-  { id: 29, shot: "Medium Shot", expression: "Laughing", lighting: "Kitchen Interior", outfit: "Apron over casual clothes", description: "Flour on face, messy kitchen, warm home lighting" },
-  { id: 30, shot: "Medium Shot", expression: "Neutral", lighting: "Library Lamp", outfit: "Preppy cardigan", description: "Green bankers lamp light, dust motes in air" },
-  { id: 31, shot: "Medium Shot", expression: "Surprised", lighting: "Car Interior", outfit: "Casual graphic tee", description: "Selfie angle from passenger seat, seatbelt visible" },
-  { id: 32, shot: "Medium Shot", expression: "Serious", lighting: "Rainy Day", outfit: "Raincoat and umbrella", description: "Raindrops on lens, grey lighting, wet street" },
-  { id: 33, shot: "Medium Shot", expression: "Flirty", lighting: "Bar Dim Light", outfit: "Cocktail dress", description: "Noise, blurry background people, holding a drink" },
-
-  // --- FULL BODY (34-40) --- Focus: Posture, proportions, outfit fit
-  { id: 34, shot: "Full Body", expression: "Neutral", lighting: "Gym Fluorescent", outfit: "Yoga leggings and sports bra", description: "Mirror selfie in gym, harsh overhead lights" },
-  { id: 35, shot: "Full Body", expression: "Smiling", lighting: "Park Sunlight", outfit: "Bohemian maxi dress", description: "Walking away then turning back, hair in motion" },
-  { id: 36, shot: "Full Body", expression: "Confident", lighting: "Paparazzi Flash", outfit: "High fashion avant-garde suit", description: "Multiple flash sources, night street, red carpet style" },
-  { id: 37, shot: "Full Body", expression: "Neutral", lighting: "Urban Alleyway", outfit: "Grunge flannel and ripped jeans", description: "Trash cans in background, gritty texture, overcast" },
-  { id: 38, shot: "Full Body", expression: "Laughing", lighting: "Beach Sunset", outfit: "White summer shorts outfit", description: "Running into water, motion blur on legs" },
-  { id: 39, shot: "Full Body", expression: "Serious", lighting: "Elevator Light", outfit: "Pencil skirt and blazer", description: "Top down lighting, metallic reflections, security camera angle" },
-  { id: 40, shot: "Full Body", expression: "Surprised", lighting: "Snowy Day", outfit: "Winter coat, scarf, boots", description: "Snow falling, overcast white light, breath visible in cold" },
-
-  // --- CINEMATIC / ARTISTIC (41-45) --- New Additions for Variety
-  { id: 41, shot: "Action Shot", expression: "Focused", lighting: "Golden Hour Backlight", outfit: "Athletic wear", description: "Jogging in a park, hair flying, motion blur background, dynamic energy" },
-  { id: 42, shot: "Close-up", expression: "Peaceful", lighting: "Morning Sun Rays", outfit: "White bed sheets", description: "Lying in bed, sunlight hitting face through blinds, soft shadows, high key" },
-  { id: 43, shot: "Low Angle", expression: "Dominant", lighting: "Cyberpunk Neon", outfit: "Leather trench coat", description: "Looking down at camera, rain falling, blue and pink rim lights, wet texture" },
-  { id: 44, shot: "Reflection", expression: "Contemplative", lighting: "Rainy Window", outfit: "Cozy oversized knit", description: "Shot through a rainy window, face reflection visible, melancholic vibe" },
-  { id: 45, shot: "Portrait", expression: "Ethereal", lighting: "Prism Refraction", outfit: "Sheer white dress", description: "Rainbow light leaks across face, dreamlike atmosphere, soft focus" }
+  // --- LIFESTYLE & REALISM (4-45) --- 
+  { id: 4, shot: "Coffee Shop Candid", expression: "Thoughtful", lighting: "Window Side Light", outfit: "Beige cashmere turtle neck sweater", description: "Sitting at a wooden table, steam rising from coffee, blurred cafe background, cozy atmosphere" },
+  { id: 5, shot: "Street Crossing", expression: "Confident", lighting: "Overcast City Day", outfit: "Black leather biker jacket and white tee", description: "Walking across street, wind blowing hair, urban city background, depth of field" },
+  { id: 6, shot: "Golden Hour Selfie", expression: "Soft Smile", lighting: "Direct Sunset Glow", outfit: "White linen summer dress", description: "Hand holding camera angle, sun flare hitting lens, warm orange tones, park background" },
+  { id: 7, shot: "Supermarket Aisle", expression: "Neutral", lighting: "Fluorescent Shop Light", outfit: "Grey oversized hoodie", description: "Holding a product, shelves in background, realistic everyday shopping vibe" },
+  { id: 8, shot: "Office Desk", expression: "Focused", lighting: "Cool Office Daylight", outfit: "Light blue button-up shirt", description: "Working at laptop, modern glass office background, clean aesthetic" },
+  { id: 9, shot: "Car Passenger", expression: "Relaxed", lighting: "Afternoon Sun (Hard Shadows)", outfit: "Black sunglasses (on head) and tank top", description: "Seatbelt visible, window reflection, road trip vibe, realistic skin texture" },
+  { id: 10, shot: "Night Out Dining", expression: "Happy", lighting: "Warm Candlelight", outfit: "Black silk slip dress", description: "Restaurant setting, wine glass on table, bokeh background lights (warm tones)" },
+  { id: 11, shot: "Morning Routine", expression: "Sleepy", lighting: "Soft Morning Haze", outfit: "White cotton bathrobe", description: "Holding toothbrush, bathroom mirror reflection, no makeup look, very natural" },
+  { id: 12, shot: "Library Studying", expression: "Serious", lighting: "Quiet Library Lamp", outfit: "Chunky knit brown cardigan", description: "Surrounded by books, reading glasses in hand, dust motes in light, dark academia" },
+  { id: 13, shot: "Gym Workout", expression: "Tired/Sweaty", lighting: "Harsh Gym Downlight", outfit: "Black sports bra and leggings", description: "Sitting on bench, sweat on skin, gym equipment background, realistic fitness" },
+  { id: 14, shot: "Rainy Taxi Window", expression: "Melancholic", lighting: "Streetlight through Rain", outfit: "Yellow raincoat", description: "Leaning head on window, raindrops on glass, city lights blurring outside (amber tones)" },
+  { id: 15, shot: "Park Picnic", expression: "Laughing", lighting: "Dappled Sunlight (Tree Shade)", outfit: "Gingham checkered sundress", description: "Lying on grass, shadows of leaves on face, bright and airy" },
+  { id: 16, shot: "Subway Commute", expression: "Bored", lighting: "Subway Tube Light", outfit: "Denim jacket and headphones", description: "Holding pole, crowded train background, realistic urban commute" },
+  { id: 17, shot: "Beach Sunset", expression: "Peaceful", lighting: "Soft Pink Twilight", outfit: "Oversized white shirt (beach coverup)", description: "Walking on sand, ocean in background, wind in hair, salt texture" },
+  { id: 18, shot: "Winter Walk", expression: "Cold", lighting: "Grey Overcast Snow", outfit: "Thick wool scarf and puffer jacket", description: "Snow falling, red nose from cold, breath visible, snowy street" },
+  { id: 19, shot: "Kitchen Cooking", expression: "Focused", lighting: "Kitchen Under-cabinet Light", outfit: "Casual t-shirt and apron", description: "Choping vegetables, messy kitchen counter, homey vibe" },
+  { id: 20, shot: "Hotel Lobby", expression: "Elegant", lighting: "Warm Chandelier", outfit: "Navy blue blazer", description: "Sitting in armchair, waiting, upscale interior background" },
+  { id: 21, shot: "Rooftop Terrace", expression: "Free", lighting: "Golden Hour Backlight", outfit: "Sleeveless silk top", description: "City skyline behind, hair glowing from sun behind, drink in hand" },
+  { id: 22, shot: "Elevator Selfie", expression: "Cool", lighting: "Metallic Overhead Light", outfit: "All black outfit", description: "Mirror selfie in elevator, metallic reflections, daily life update" },
+  { id: 23, shot: "Art Museum", expression: "Curious", lighting: "Spotlight on Art", outfit: "Minimalist grey coat", description: "Looking at a painting, clean white walls, gallery atmosphere" },
+  { id: 24, shot: "Hiking Summit", expression: "Accomplished", lighting: "Bright Mountain Sun", outfit: "Windbreaker and backpack", description: "Blue sky background, wind blown hair, nature landscape" },
+  { id: 25, shot: "Bedroom Reading", expression: "Relaxed", lighting: "Bedside Lamp", outfit: "Silk pajamas", description: "Lying in bed, reading a book, warm cozy atmosphere, night time" },
+  { id: 26, shot: "Grocery Flowers", expression: "Happy", lighting: "Natural Outdoor Shade", outfit: "Floral blouse", description: "Holding a bouquet of flowers, flower market background, colorful" },
+  { id: 27, shot: "Laptop Cafe Work", expression: "Stressed", lighting: "Laptop Screen Glow", outfit: "Casual hoodie", description: "Late evening in cafe, face illuminated by screen, realistic work mode" },
+  { id: 28, shot: "Stairs Photoshoot", expression: "Posey", lighting: "Natural Skylight", outfit: "Streetwear style (Cargo pants)", description: "Sitting on concrete stairs, urban minimalist background" },
+  { id: 29, shot: "Convenience Store", expression: "Hungry", lighting: "Bright LED Store Light", outfit: "Casual track jacket", description: "Looking at snacks, rows of colorful products, late night snack run" },
+  { id: 30, shot: "Garden Watering", expression: "Content", lighting: "Morning Sun", outfit: "Overalls and straw hat", description: "Watering plants, greenery, wet leaves, authentic hobby" },
+  { id: 31, shot: "Car Driver", expression: "Singing", lighting: "Daylight through Windshield", outfit: "Sunglasses and tank top", description: "Hands on steering wheel, singing along, road visible through glass" },
+  { id: 32, shot: "Formal Event", expression: "Charming", lighting: "Flash Photography", outfit: "Red evening gown", description: "Red carpet style but realistic, holding clutch, high contrast flash" },
+  { id: 33, shot: "Dog Walking", expression: "Playful", lighting: "Afternoon Sun", outfit: "Leggings and sweatshirt", description: "Leash in hand (dog out of frame or blurred), park path" },
+  { id: 34, shot: "Airport Departure", expression: "Tired but Excited", lighting: "Large Window Daylight", outfit: "Comfortable travel sweats", description: "Sitting at gate, suitcase visible, airplanes outside window" },
+  { id: 35, shot: "Balcony Coffee", expression: "Peaceful", lighting: "Sunrise", outfit: "Silk robe", description: "Leaning on railing, city waking up in background, soft light" },
+  { id: 36, shot: "Vintage Record Store", expression: "Cool", lighting: "Dim Interior", outfit: "Vintage leather jacket", description: "Browsing vinyl records, posters on wall, retro vibe" },
+  { id: 37, shot: "Poolside Lounge", expression: "Relaxing", lighting: "Bright Harsh Sun", outfit: "Swimsuit and sarong", description: "Lying on lounge chair, sunglasses, blue water background" },
+  { id: 38, shot: "Night Street Food", expression: "Happy", lighting: "Street Stall Bulbs", outfit: "Casual denim shirt", description: "Eating street food, blurry night city background, candid" },
+  { id: 39, shot: "Makeup Vanity", expression: "Focused", lighting: "Ring Light", outfit: "White towel on head", description: "Applying lipstick, mirror reflection, makeup products visible" },
+  { id: 40, shot: "Rainy Bus Stop", expression: "Waiting", lighting: "Grey Gloomy Light", outfit: "Trench coat and umbrella", description: "Standing under shelter, wet street, moody atmosphere" },
+  { id: 41, shot: "Sunday Brunch", expression: "Social", lighting: "Outdoor Patio Light", outfit: "Smart casual blazer", description: "Mimosa in hand, sunny patio background, laughter" },
+  { id: 42, shot: "Laundry Mat", expression: "Waiting", lighting: "Fluorescent Strip Light", outfit: "College sweatshirt", description: "Sitting on washing machine, rows of machines, retro laundromat vibe" },
+  { id: 43, shot: "Tennis Court Break", expression: "Sweaty", lighting: "High Noon Sun", outfit: "White tennis skirt", description: "Drinking water, red face from heat, green court background" },
+  { id: 44, shot: "Boat Ride", expression: "Windy", lighting: "Open Water Sun", outfit: "Nautical stripes shirt", description: "Wind messing up hair, blue water background, holiday vibe" },
+  { id: 45, shot: "Classic Portrait", expression: "Intense", lighting: "Rembrandt Studio Light", outfit: "Black turtleneck", description: "Simple textured background, high detail skin texture, serious art portrait" }
 ];

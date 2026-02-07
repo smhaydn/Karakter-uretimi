@@ -118,20 +118,24 @@ export const generatePersonaImage = async (
 
   const coreInstruction = `
     [TASK]
-    Generate a photorealistic image by fusing the POSE from ${sketchIndex} with the IDENTITY from ${identityIndex}.
+    Generate a 100% PHOTOREALISTIC, LIFESTYLE PHOTOGRAPH by fusing the POSE from ${sketchIndex} with the IDENTITY from ${identityIndex}.
 
-    [STRICT RULES - DO NOT BREAK]
-    1. POSE SOURCE (${sketchIndex}): You MUST strictly follow the composition, camera angle, and body language of the Sketch.
-    2. IDENTITY SOURCE (${identityIndex}): You MUST strictly copy the facial features (eyes, nose, mouth structure) from this image.
-    3. SEPARATION: IGNORE the pose, background, and clothing of ${identityIndex}. ONLY take the face.
-    4. VARIETY: The output must look COMPLETELY different from ${identityIndex} in terms of lighting, angle, and scenario.
-    5. FORMAT: Generate a SINGLE, FRAMELESS, FULL-BLEED PHOTOGRAPH. Do NOT create a character sheet, collage, or document.
+    [IDENTITY LOCK - CRITICAL]
+    - The face in the output MUST be a 1:1 BIOLOGICAL CLONE of the person in ${identityIndex}.
+    - Copy: Eye shape, eye color, nose structure, lip shape, mole placement, jawline.
+    - If the reference image has imperfections (asymmetry, pores, scars), YOU MUST KEEP THEM. Do not "beautify" or "cartoonify" the face.
+    - Skin Texture: Must be hyper-realistic. Visible pores, vellus hair, natural skin tone variation. NO PLASTIC SKIN.
 
-    [HAIR & IDENTITY PRESERVATION - CRITICAL]
-    - Analyze the hair in ${identityIndex}. You MUST PRESERVE the specific Hair Color and Hair Length/Volume.
-    - If the reference has long hair, the output MUST have long hair. 
-    - You MAY change the hairstyle (e.g., messy bun, ponytail, wind-blown, tucked behind ears) to fit the scene.
-    - You MUST NOT shave the head, make the subject bald, or drastically cut the hair length unless explicitly asked in the prompt.
+    [CLOTHING BARRIER - ABSOLUTE LAW]
+    - IGNORE the clothing in the reference image.
+    - You MUST generate the outfit described in the prompt below with 100% FABRIC PHYSICS ACCURACY.
+    - If prompt says "Wool Sweater", I need to see the fuzzy wool texture. If "Leather", I need to see the grain and specular highlights.
+    - Do not blend the reference outfit into the new image.
+
+    [HAIR PRESERVATION]
+    - PRESERVE the Hair Color and Length from ${identityIndex}.
+    - Style can match the prompt (e.g., messy bun), but volume and color must match the person.
+    - NO BALD/SHAVED heads unless requested.
   `;
 
   let anchorInstruction = "";
@@ -148,13 +152,13 @@ export const generatePersonaImage = async (
     ${config.prompt}
 
     [AESTHETIC & FILM LOOK]
-    - Analog photography style, candid shot.
-    - Imperfect framing, natural motion blur if applicable.
-    - Skin texture: Visible pores, not plastic, not airbrushed.
-    - Lighting: Must match the scene description, NOT the reference image.
+    - STYLE: Candid Lifestyle Photography (National Geographic / Vogue Editorial).
+    - CAMERA: Shot on 35mm film (Kodak Portra 400 or Fujifilm simulation).
+    - LIGHTING: Natural, motivated lighting. NO NEON. NO FANTASY GLOW.
+    - TEXTURE: High frequency details. Clothing must look touchable.
 
     [NEGATIVE PROMPT]
-    bald, shaved head, buzz cut, no hair, receding hairline, drawing, sketch, illustration, 3d render, plastic skin, same pose as reference, floating limbs, deformed hands, text, writing, watermark, signature, border, frame, white background margin, collage, montage, multiple views, character sheet layout, typography, handwritten notes, split screen.
+    neon, cyberpunk, sci-fi, fantasy, drawing, sketch, illustration, 3d render, cgi, plastic skin, airbrushed, cartoon, anime, doll-like, smooth skin, glowing eyes, magic, sparks, studio background, deformed hands, floating limbs, text, watermark, border, frame, collage, character sheet, multiple views, split screen, bald, shaved head.
     `;
   } else {
     finalPrompt = `
@@ -162,10 +166,10 @@ export const generatePersonaImage = async (
     ${anchorInstruction}
     
     Subject: ${config.prompt}
-    Style: 8k resolution, cinematic lighting, photorealistic, highly detailed.
+    Style: 8k resolution, photorealistic, cinematic lifestyle photography.
     
     [NEGATIVE PROMPT]
-    bald, shaved head, buzz cut, text, watermark, border, frame, paper, document, collage, character sheet, multiple angles, split view.
+    neon, fantasy, cartoon, illustration, bald, shaved head, buzz cut, text, watermark, border, frame, paper, document, collage, character sheet, multiple angles, split view, cgi, 3d render.
     `;
   }
 
