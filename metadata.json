@@ -1,0 +1,5 @@
+{
+  "name": "Karakter uretimi",
+  "description": "A specialized tool for generating high-fidelity, consistent character variations for LoRA training datasets using Gemini 3 Pro Vision.",
+  "requestFramePermissions": []
+}
