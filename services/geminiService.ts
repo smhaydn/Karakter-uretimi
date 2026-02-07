@@ -13,6 +13,7 @@ async function ensureApiKey(): Promise<string | undefined> {
 }
 
 // --- 1. AI SKETCH ARTIST (Pass 1) ---
+// Now more aggressive on dynamic poses
 export const generateSketch = async (
   poseDescription: string,
   aspectRatio: AspectRatio
@@ -22,24 +23,24 @@ export const generateSketch = async (
   const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
-    Create a rough, minimalist charcoal or pencil sketch of the following pose: "${poseDescription}".
+    Create a HIGHLY DYNAMIC, EXAGGERATED gesture drawing or storyboard sketch for: "${poseDescription}".
     
     CRITICAL INSTRUCTIONS:
-    - Black lines on white background.
-    - Focus ONLY on the body posture, limb placement, and composition.
-    - DO NOT draw a detailed face (leave face blank or rough).
-    - No shading, just outlines and gesture lines.
-    - This will be used as a ControlNet-style structural reference.
+    - FORCE A NEW PERSPECTIVE: Do not just draw a front-facing person. Use high angles, low angles, or side profiles as implied by the description.
+    - DYNAMIC LINES: Use strong action lines. The pose must be distinct and readable.
+    - MINIMALISM: Black thick lines on white background. No shading.
+    - NO FACIAL DETAILS: Leave the face blank/empty.
+    - CROP: Ensure the sketch matches the requested aspect ratio fully.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview', // Pro image model for sketching
+      model: 'gemini-3-pro-image-preview', 
       contents: { parts: [{ text: prompt }] },
       config: {
         imageConfig: {
           aspectRatio: aspectRatio,
-          imageSize: "1K" // Sketch doesn't need 4K
+          imageSize: "1K"
         }
       }
     });
@@ -69,18 +70,9 @@ export const generatePersonaImage = async (
   const ai = new GoogleGenAI({ apiKey });
   const parts: any[] = [];
 
-  // 1. PRIMARY IDENTITY REFERENCE (The User's Upload)
-  if (config.referenceImage) {
-    const base64Data = config.referenceImage.split(',')[1] || config.referenceImage;
-    parts.push({
-      inlineData: {
-        mimeType: 'image/png',
-        data: base64Data
-      }
-    });
-  }
-
-  // 2. POSE REFERENCE (The AI Sketch)
+  // --- INPUTS ORDER MATTERS ---
+  
+  // 1. POSE REFERENCE (The Sketch) - Priority 1 for Composition
   if (sketchReference) {
     const base64Sketch = sketchReference.split(',')[1] || sketchReference;
     parts.push({
@@ -91,8 +83,18 @@ export const generatePersonaImage = async (
     });
   }
 
+  // 2. PRIMARY IDENTITY REFERENCE (The User's Upload) - Priority 1 for Face
+  if (config.referenceImage) {
+    const base64Data = config.referenceImage.split(',')[1] || config.referenceImage;
+    parts.push({
+      inlineData: {
+        mimeType: 'image/png',
+        data: base64Data
+      }
+    });
+  }
+
   // 3. ANCHOR REFERENCES (Consistency Feedback Loop)
-  // We take up to 2 anchors to avoid token/size limits while maintaining consistency
   if (anchorReferences && anchorReferences.length > 0) {
     anchorReferences.slice(0, 2).forEach(anchor => {
         const base64Anchor = anchor.url.split(',')[1] || anchor.url;
@@ -105,45 +107,54 @@ export const generatePersonaImage = async (
     });
   }
 
-  // --- HYBRID REALISM ENGINE ---
+  // --- STRICT PROMPT ENGINEERING ---
   let finalPrompt = "";
   
-  // Construct instructions based on inputs
-  let refInstructions = "Image 1 is the PRIMARY IDENTITY (Face ID). Preserve facial features strictly.";
-  if (sketchReference) {
-      refInstructions += " Image 2 is the POSE STRUCTURE (Sketch). Copy this body posture exactly but render it as a real photo.";
-  }
+  // New "De-Coupling" Strategy
+  const sketchIndex = sketchReference ? "Image 1" : "None";
+  const identityIndex = sketchReference ? "Image 2" : "Image 1";
+  const anchorStartIndex = sketchReference ? 3 : 2;
+
+  const coreInstruction = `
+    [TASK]
+    Generate a photorealistic image by fusing the POSE from ${sketchIndex} with the IDENTITY from ${identityIndex}.
+
+    [STRICT RULES - DO NOT BREAK]
+    1. POSE SOURCE (${sketchIndex}): You MUST strictly follow the composition, camera angle, and body language of the Sketch.
+    2. IDENTITY SOURCE (${identityIndex}): You MUST strictly copy the facial features (eyes, nose, mouth structure) from this image.
+    3. SEPARATION: IGNORE the pose, background, and clothing of ${identityIndex}. ONLY take the face.
+    4. VARIETY: The output must look COMPLETELY different from ${identityIndex} in terms of lighting, angle, and scenario.
+  `;
+
+  let anchorInstruction = "";
   if (anchorReferences && anchorReferences.length > 0) {
-      const startIndex = sketchReference ? 3 : 2;
-      refInstructions += ` Images ${startIndex}+ are STYLE & IDENTITY ANCHORS. Use them to ensure the character looks consistent with previous generations.`;
+      anchorInstruction = `[IDENTITY ANCHORS (Images ${anchorStartIndex}+)]: Use these ONLY to confirm skin texture and mole placement. Ignore their poses.`;
   }
 
   if (config.isRawMode) {
     finalPrompt = `
-    [INPUT MAPPING]
-    ${refInstructions}
+    ${coreInstruction}
+    ${anchorInstruction}
 
-    [CAMERA & OPTICS]
-    Phone-camera realism, slight edge softness, natural focus falloff, subtle sensor grain.
-    Real daylight with slight warmth, natural contrast.
-    
-    [SKIN PHYSICS - CRITICAL]
-    - Visible pores and fine micro-texture.
-    - Natural oil sheen only on high points.
-    - FLAWLESS BUT TEXTURED: Remove acne, keep organic skin texture.
-    - Natural flyaways and baby hairs.
-
-    [SUBJECT & SCENE]
+    [SCENE DESCRIPTION]
     ${config.prompt}
 
-    [STRICT NEGATIVES]
-    NO 3D Render, NO sketch lines in final output, NO drawing.
-    NO faded colors, NO plastic skin.
+    [AESTHETIC & FILM LOOK]
+    - Analog photography style, candid shot.
+    - Imperfect framing, natural motion blur if applicable.
+    - Skin texture: Visible pores, not plastic, not airbrushed.
+    - Lighting: Must match the scene description, NOT the reference image.
+
+    [NEGATIVE PROMPT]
+    drawing, sketch, illustration, 3d render, plastic skin, same pose as reference, floating limbs, deformed hands.
     `;
   } else {
     finalPrompt = `
-    ${refInstructions}
-    ${config.prompt}. Photorealistic, 8k, highly detailed, hyper-realistic, cinematic lighting.
+    ${coreInstruction}
+    ${anchorInstruction}
+    
+    Subject: ${config.prompt}
+    Style: 8k resolution, cinematic lighting, photorealistic, highly detailed.
     `;
   }
 
