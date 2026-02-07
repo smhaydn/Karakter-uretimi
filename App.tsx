@@ -9,7 +9,9 @@ import {
   Info,
   FileText,
   ListTodo,
-  Sparkles
+  Sparkles,
+  Film,
+  Aperture
 } from 'lucide-react';
 
 import { ApiKeyManager } from './components/ApiKeyManager';
@@ -45,6 +47,7 @@ function App() {
   // Settings
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(AspectRatio.SQUARE);
   const [imageSize, setImageSize] = useState<ImageSize>(ImageSize.ONE_K);
+  const [isRawMode, setIsRawMode] = useState(true); // Default to true for realism
 
   // --- Handlers ---
 
@@ -76,9 +79,9 @@ function App() {
     // Structure: [Shot] of a woman, [Expression], wearing [Outfit], [Lighting], [Description]
     const structuredPrompt = `${item.shot} of a woman, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting. ${item.description}`;
     
-    // Construct the Caption for the TXT file
-    // Structure: [Trigger], [Shot] ..., [Expression], [Outfit], [Lighting], [Tech Tags]
-    const caption = `${triggerWord}, ${item.shot} of a woman, ${item.description}, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting, 8k, hyper realistic, high quality`;
+    // Construct the Caption for the TXT file with Raw/Analog tags if enabled
+    const rawTags = isRawMode ? ", raw photo, film grain, analog style, highly detailed skin, visible pores, unedited" : ", 8k, hyper realistic, high quality";
+    const caption = `${triggerWord}, ${item.shot} of a woman, ${item.description}, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting${rawTags}`;
 
     await executeGeneration(structuredPrompt, caption, true);
     
@@ -93,7 +96,8 @@ function App() {
         prompt: promptText,
         referenceImage,
         aspectRatio,
-        imageSize
+        imageSize,
+        isRawMode // Pass the toggle state
       });
 
       const newImages = images.map(url => ({
@@ -229,6 +233,26 @@ function App() {
                     <span className="w-1 h-4 bg-fuchsia-500 rounded-full"></span>
                     Tech Specs
                 </h2>
+                
+                {/* Raw Mode Toggle */}
+                <div className="flex items-center justify-between bg-black/40 p-3 rounded-xl border border-neutral-800/50">
+                    <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-lg ${isRawMode ? 'bg-orange-500/20 text-orange-400' : 'bg-neutral-800 text-neutral-500'}`}>
+                            {isRawMode ? <Film size={18} /> : <Aperture size={18} />}
+                        </div>
+                        <div>
+                            <div className="text-sm font-medium text-white">Raw / Analog Mode</div>
+                            <div className="text-[10px] text-neutral-500">Adds grain, texture & imperfections</div>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => setIsRawMode(!isRawMode)}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${isRawMode ? 'bg-orange-600' : 'bg-neutral-700'}`}
+                    >
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${isRawMode ? 'left-7' : 'left-1'}`} />
+                    </button>
+                </div>
+
                 {/* Aspect Ratio */}
                 <div className="space-y-3">
                     <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Aspect Ratio</label>

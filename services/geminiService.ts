@@ -43,9 +43,23 @@ export const generatePersonaImage = async (
     });
   }
 
-  // Add text prompt
-  // We enhance the prompt slightly to ensure high quality if the user input is brief
-  const enhancedPrompt = `${config.prompt}. Photorealistic, 8k, highly detailed, hyper-realistic, cinematic lighting.`;
+  // --- RAW MODE PROMPT LOGIC ---
+  let promptSuffix = "";
+
+  if (config.isRawMode) {
+    // The "Anti-AI" Prompt Recipe
+    promptSuffix = `
+      . Raw photo, shot on 35mm film, Kodak Portra 400, grainy texture.
+      EXTREMELY DETAILED SKIN TEXTURE: visible pores, slight skin imperfections, tiny blemishes, natural skin variation, stray hairs, peach fuzz, natural eyebrows (not microbladed).
+      Lighting: Natural, candid, unedited, sharp focus on eyes.
+      NEGATIVE PROMPT / AVOID: smooth skin, airbrushed, plastic skin, cgi, 3d render, cartoon, anime, drawing, illustration, perfect skin, heavy makeup, symmetry.
+    `;
+  } else {
+    // Fallback legacy prompt
+    promptSuffix = `. Photorealistic, 8k, highly detailed, hyper-realistic, cinematic lighting.`;
+  }
+
+  const enhancedPrompt = `${config.prompt}${promptSuffix}`;
   parts.push({ text: enhancedPrompt });
 
   try {

@@ -26,6 +26,7 @@ export interface GenerationConfig {
   referenceImage: string | null; // Base64 string
   aspectRatio: AspectRatio;
   imageSize: ImageSize;
+  isRawMode?: boolean; // New flag for analog style
 }
 
 export interface DatasetItem {
