@@ -43,24 +43,43 @@ export const generatePersonaImage = async (
     });
   }
 
-  // --- RAW MODE PROMPT LOGIC ---
-  let promptSuffix = "";
+  // --- HYBRID REALISM ENGINE ---
+  let finalPrompt = "";
 
   if (config.isRawMode) {
-    // The "Anti-AI" Prompt Recipe
-    promptSuffix = `
-      . Raw photo, shot on 35mm film, Kodak Portra 400, grainy texture.
-      EXTREMELY DETAILED SKIN TEXTURE: visible pores, slight skin imperfections, tiny blemishes, natural skin variation, stray hairs, peach fuzz, natural eyebrows (not microbladed).
-      Lighting: Natural, candid, unedited, sharp focus on eyes.
-      NEGATIVE PROMPT / AVOID: smooth skin, airbrushed, plastic skin, cgi, 3d render, cartoon, anime, drawing, illustration, perfect skin, heavy makeup, symmetry.
+    // The "Hybrid Realism" Prompt Architecture
+    // Adapts the physics of the user's "smartphone mirror" prompt but removes the phone/acne.
+    finalPrompt = `
+    [CAMERA & OPTICS]
+    Phone-camera realism, slight edge softness, natural focus falloff, subtle sensor grain.
+    Real daylight with slight warmth, natural contrast (not flat, not cinematic).
+    Accurate white balance. True-to-life colors.
+    
+    [SKIN PHYSICS - CRITICAL]
+    - Visible pores and fine micro-texture (must be visible).
+    - Natural oil sheen only on high points (cheekbone, nose), matte elsewhere.
+    - No symmetry correction.
+    - Skin looks healthy and alive, not dull, not glossy-luminous.
+    - FLAWLESS BUT TEXTURED: Remove acne/blemishes, but KEEP organic skin texture/pores.
+    - Natural flyaways and baby hairs.
+
+    [SUBJECT & SCENE]
+    ${config.prompt}
+
+    [STRICT NEGATIVES]
+    NO 3D Render, NO Octane Render, NO Unreal Engine.
+    NO faded colors, NO pastel tones, NO beige aesthetic.
+    NO flat lighting, NO overexposed whites, NO AI glow.
+    NO plastic skin, NO skincare-ad look, NO studio lighting.
+    NO cartoon, anime, drawing, illustration.
+    NO phone covering face (unless specified in scene).
     `;
   } else {
-    // Fallback legacy prompt
-    promptSuffix = `. Photorealistic, 8k, highly detailed, hyper-realistic, cinematic lighting.`;
+    // Fallback standard prompt
+    finalPrompt = `${config.prompt}. Photorealistic, 8k, highly detailed, hyper-realistic, cinematic lighting.`;
   }
 
-  const enhancedPrompt = `${config.prompt}${promptSuffix}`;
-  parts.push({ text: enhancedPrompt });
+  parts.push({ text: finalPrompt });
 
   try {
     const response = await ai.models.generateContent({

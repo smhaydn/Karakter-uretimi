@@ -80,7 +80,11 @@ function App() {
     const structuredPrompt = `${item.shot} of a woman, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting. ${item.description}`;
     
     // Construct the Caption for the TXT file with Raw/Analog tags if enabled
-    const rawTags = isRawMode ? ", raw photo, film grain, analog style, highly detailed skin, visible pores, unedited" : ", 8k, hyper realistic, high quality";
+    // UPDATED: Added tags that match the new engine logic (smartphone quality, skin texture)
+    const rawTags = isRawMode 
+      ? ", smartphone camera, subtle sensor grain, detailed skin texture, visible pores, natural oil sheen, unedited, candid" 
+      : ", 8k, hyper realistic, high quality";
+    
     const caption = `${triggerWord}, ${item.shot} of a woman, ${item.description}, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting${rawTags}`;
 
     await executeGeneration(structuredPrompt, caption, true);
