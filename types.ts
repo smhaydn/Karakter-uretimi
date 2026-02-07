@@ -2,7 +2,9 @@ export interface GeneratedImage {
   id: string;
   url: string;
   prompt: string;
+  caption: string; // For .txt file content
   timestamp: number;
+  isDataset?: boolean;
 }
 
 export enum AspectRatio {
@@ -24,4 +26,13 @@ export interface GenerationConfig {
   referenceImage: string | null; // Base64 string
   aspectRatio: AspectRatio;
   imageSize: ImageSize;
+}
+
+export interface DatasetItem {
+  id: number;
+  shot: string;
+  expression: string;
+  lighting: string;
+  outfit: string;
+  description: string;
 }

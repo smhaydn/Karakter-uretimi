@@ -7,22 +7,38 @@ import {
   Trash2, 
   Layers,
   Info,
-  ChevronDown
+  FileText,
+  ListTodo,
+  Sparkles
 } from 'lucide-react';
 
 import { ApiKeyManager } from './components/ApiKeyManager';
 import { ImageUploader } from './components/ImageUploader';
 import { generatePersonaImage } from './services/geminiService';
 import { GeneratedImage, AspectRatio, ImageSize } from './types';
+import { DATASET_PLAN } from './utils/datasetPlan';
 
 // Utility for creating unique IDs
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+type Mode = 'FREE' | 'DATASET';
 
 function App() {
   // State
   const [apiKeyReady, setApiKeyReady] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  
+  // Mode State
+  const [mode, setMode] = useState<Mode>('FREE');
+  
+  // Free Mode State
   const [prompt, setPrompt] = useState("");
+  
+  // Dataset Mode State
+  const [datasetIndex, setDatasetIndex] = useState(0);
+  const [triggerWord, setTriggerWord] = useState("ohwx woman");
+
+  // Common State
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   
@@ -30,22 +46,51 @@ function App() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(AspectRatio.SQUARE);
   const [imageSize, setImageSize] = useState<ImageSize>(ImageSize.ONE_K);
 
-  // Handlers
-  const handleGenerate = async () => {
+  // --- Handlers ---
+
+  const handleFreeGenerate = async () => {
     if (!referenceImage) {
       alert("Please upload a reference image of your model first.");
       return;
     }
     if (!prompt.trim()) {
-      alert("Please enter a prompt describing the pose, setting, and outfit.");
+      alert("Please enter a prompt.");
+      return;
+    }
+    await executeGeneration(prompt, "Free Roam Generation");
+  };
+
+  const handleDatasetGenerate = async () => {
+    if (!referenceImage) {
+      alert("Please upload a reference image first.");
+      return;
+    }
+    if (datasetIndex >= DATASET_PLAN.length) {
+      alert("Dataset plan completed! You have generated all 40 images.");
       return;
     }
 
-    setIsGenerating(true);
+    const item = DATASET_PLAN[datasetIndex];
+    
+    // Construct the structured prompt
+    // Structure: [Shot] of a woman, [Expression], wearing [Outfit], [Lighting], [Description]
+    const structuredPrompt = `${item.shot} of a woman, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting. ${item.description}`;
+    
+    // Construct the Caption for the TXT file
+    // Structure: [Trigger], [Shot] ..., [Expression], [Outfit], [Lighting], [Tech Tags]
+    const caption = `${triggerWord}, ${item.shot} of a woman, ${item.description}, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting, 8k, hyper realistic, high quality`;
 
+    await executeGeneration(structuredPrompt, caption, true);
+    
+    // Advance progress
+    setDatasetIndex(prev => prev + 1);
+  };
+
+  const executeGeneration = async (promptText: string, captionText: string, isDataset: boolean = false) => {
+    setIsGenerating(true);
     try {
       const images = await generatePersonaImage({
-        prompt,
+        prompt: promptText,
         referenceImage,
         aspectRatio,
         imageSize
@@ -54,15 +99,17 @@ function App() {
       const newImages = images.map(url => ({
         id: generateId(),
         url,
-        prompt,
-        timestamp: Date.now()
+        prompt: promptText,
+        caption: captionText, // Save the calculated caption
+        timestamp: Date.now(),
+        isDataset
       }));
 
       setGeneratedImages(prev => [...newImages, ...prev]);
     } catch (error: any) {
       if (error.message === "API_KEY_INVALID") {
           alert("API Key invalid or expired. Please re-select your key.");
-          setApiKeyReady(false); // Triggers re-auth flow
+          setApiKeyReady(false);
       } else {
           alert("Generation failed: " + (error.message || "Unknown error"));
       }
@@ -71,7 +118,7 @@ function App() {
     }
   };
 
-  const handleDownload = (url: string, id: string) => {
+  const handleDownloadImage = (url: string, id: string) => {
     const link = document.createElement('a');
     link.href = url;
     link.download = `persona-${id}.png`;
@@ -80,9 +127,25 @@ function App() {
     document.body.removeChild(link);
   };
 
+  const handleDownloadCaption = (caption: string, id: string) => {
+    const blob = new Blob([caption], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `persona-${id}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleDelete = (id: string) => {
     setGeneratedImages(prev => prev.filter(img => img.id !== id));
   };
+
+  // Dataset Progress Calculation
+  const currentPlanItem = datasetIndex < DATASET_PLAN.length ? DATASET_PLAN[datasetIndex] : null;
+  const progressPercentage = (datasetIndex / DATASET_PLAN.length) * 100;
 
   return (
     <div className="min-h-screen bg-black text-neutral-200 selection:bg-violet-500/30">
@@ -100,7 +163,6 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-4">
-             {/* API Key Status / Manager */}
              <ApiKeyManager onReady={() => setApiKeyReady(true)} />
           </div>
         </div>
@@ -115,13 +177,8 @@ function App() {
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">Configure Access</h2>
                 <p className="text-neutral-400 mb-6">
-                    Connect your Google AI Studio account to unlock the <strong>Gemini 3 Pro Vision</strong> model capabilities. 
-                    This model is required for generating 2K/4K photorealistic datasets.
+                    Connect your Google AI Studio account to unlock the <strong>Gemini 3 Pro Vision</strong> model capabilities.
                 </p>
-                {/* The ApiKeyManager in the header handles the logic, but visual prompt here is helpful. 
-                    User interacts with the header or we could move the connection UI here.
-                    For simplicity, we rely on the header or show a prompt. 
-                */}
                 <p className="text-sm text-violet-400 animate-pulse">
                     Please use the "Select API Key" button above to continue.
                 </p>
@@ -146,21 +203,32 @@ function App() {
                   selectedImage={referenceImage}
                   onImageSelected={setReferenceImage}
                 />
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex gap-3">
-                    <Info className="text-blue-400 flex-shrink-0" size={16} />
-                    <p className="text-xs text-blue-300/80 leading-relaxed">
-                        Upload your base character image. The model will use this to maintain facial features and body type across generated variations.
-                    </p>
-                </div>
               </div>
 
-              {/* Settings Section */}
+              {/* Mode Selection */}
+              <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-2 flex">
+                  <button 
+                    onClick={() => setMode('FREE')}
+                    className={`flex-1 flex items-center justify-center space-x-2 py-3 rounded-xl text-sm font-medium transition-all ${mode === 'FREE' ? 'bg-neutral-800 text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-300'}`}
+                  >
+                    <Sparkles size={16} />
+                    <span>Free Roam</span>
+                  </button>
+                  <button 
+                    onClick={() => setMode('DATASET')}
+                    className={`flex-1 flex items-center justify-center space-x-2 py-3 rounded-xl text-sm font-medium transition-all ${mode === 'DATASET' ? 'bg-violet-600/20 text-violet-300 border border-violet-500/20 shadow-sm' : 'text-neutral-500 hover:text-neutral-300'}`}
+                  >
+                    <ListTodo size={16} />
+                    <span>Dataset Plan</span>
+                  </button>
+              </div>
+
+              {/* Shared Settings */}
               <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 space-y-6">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                     <span className="w-1 h-4 bg-fuchsia-500 rounded-full"></span>
-                    Output Configuration
+                    Tech Specs
                 </h2>
-
                 {/* Aspect Ratio */}
                 <div className="space-y-3">
                     <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Aspect Ratio</label>
@@ -169,36 +237,24 @@ function App() {
                             <button
                                 key={ratio}
                                 onClick={() => setAspectRatio(ratio)}
-                                className={`
-                                    px-3 py-2 rounded-lg text-sm font-medium transition-all
-                                    ${aspectRatio === ratio 
-                                        ? 'bg-neutral-100 text-neutral-900 shadow-lg shadow-white/10' 
-                                        : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white'}
-                                `}
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${aspectRatio === ratio ? 'bg-neutral-100 text-neutral-900' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}
                             >
                                 {ratio}
                             </button>
                         ))}
                     </div>
                 </div>
-
                 {/* Resolution */}
                 <div className="space-y-3">
-                    <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Resolution (Gemini 3 Pro)</label>
+                    <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Resolution</label>
                     <div className="grid grid-cols-3 gap-2">
                         {Object.values(ImageSize).map((size) => (
                             <button
                                 key={size}
                                 onClick={() => setImageSize(size)}
-                                className={`
-                                    px-3 py-2 rounded-lg text-sm font-medium transition-all relative overflow-hidden
-                                    ${imageSize === size 
-                                        ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40' 
-                                        : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white'}
-                                `}
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${imageSize === size ? 'bg-violet-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}
                             >
                                 {size}
-                                {size === ImageSize.FOUR_K && <span className="absolute top-0 right-0 w-2 h-2 bg-yellow-400 rounded-full m-1"></span>}
                             </button>
                         ))}
                     </div>
@@ -209,41 +265,115 @@ function App() {
             {/* Right Panel: Generation & Results */}
             <div className="lg:col-span-8 space-y-6">
               
-              {/* Prompt Input */}
-              <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-1">
-                <div className="relative">
-                    <textarea 
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder="Describe the new pose, environment, camera angle, and lighting (e.g. 'Standing in a neon-lit futuristic street, side profile, wearing a leather jacket, cinematic lighting, 85mm lens')..."
-                        className="w-full bg-transparent text-lg text-white placeholder-neutral-500 p-6 min-h-[140px] focus:outline-none resize-none"
-                    />
-                    <div className="absolute bottom-4 right-4 flex items-center space-x-3">
-                        <button
-                            onClick={handleGenerate}
-                            disabled={isGenerating || !referenceImage || !prompt.trim()}
-                            className={`
-                                flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all
-                                ${isGenerating 
-                                    ? 'bg-neutral-800 cursor-not-allowed opacity-80' 
-                                    : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:scale-105 hover:shadow-violet-900/30'}
-                            `}
-                        >
-                            {isGenerating ? (
-                                <>
-                                    <RefreshCw className="animate-spin" size={18} />
-                                    <span>Designing...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Wand2 size={18} />
-                                    <span>Generate Variation</span>
-                                </>
-                            )}
-                        </button>
+              {/* === MODE SPECIFIC INPUT === */}
+              {mode === 'FREE' ? (
+                /* Free Roam Input */
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-1">
+                    <div className="relative">
+                        <textarea 
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            placeholder="Describe the new pose, environment..."
+                            className="w-full bg-transparent text-lg text-white placeholder-neutral-500 p-6 min-h-[140px] focus:outline-none resize-none"
+                        />
+                        <div className="absolute bottom-4 right-4">
+                            <button
+                                onClick={handleFreeGenerate}
+                                disabled={isGenerating || !referenceImage || !prompt.trim()}
+                                className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all ${isGenerating ? 'bg-neutral-800 cursor-not-allowed opacity-80' : 'bg-white text-black hover:scale-105'}`}
+                            >
+                                {isGenerating ? <RefreshCw className="animate-spin" size={18} /> : <Wand2 size={18} />}
+                                <span>Generate</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-              </div>
+              ) : (
+                /* Dataset Plan Input */
+                <div className="space-y-4">
+                    {/* Trigger Word Input */}
+                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 flex items-center gap-4">
+                        <label className="text-sm font-medium text-neutral-400 whitespace-nowrap">Trigger Word:</label>
+                        <input 
+                            type="text" 
+                            value={triggerWord}
+                            onChange={(e) => setTriggerWord(e.target.value)}
+                            className="bg-black/50 border border-neutral-700 rounded-lg px-3 py-2 text-white w-full focus:outline-none focus:border-violet-500"
+                            placeholder="e.g. ohwx woman"
+                        />
+                        <div className="text-xs text-neutral-500 whitespace-nowrap">Included in .txt captions</div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 relative overflow-hidden">
+                        <div className="flex items-center justify-between mb-4 relative z-10">
+                            <h3 className="text-white font-semibold flex items-center gap-2">
+                                <ListTodo size={20} className="text-violet-400"/>
+                                Structured Dataset Plan
+                            </h3>
+                            <span className="text-violet-400 font-mono font-bold bg-violet-500/10 px-3 py-1 rounded-full">
+                                {datasetIndex} / {DATASET_PLAN.length}
+                            </span>
+                        </div>
+                        
+                        {/* Progress Bar Visual */}
+                        <div className="w-full bg-neutral-800 h-2 rounded-full mb-6 relative z-10 overflow-hidden">
+                            <div 
+                                className="bg-gradient-to-r from-violet-600 to-fuchsia-600 h-full transition-all duration-500"
+                                style={{ width: `${progressPercentage}%` }}
+                            />
+                        </div>
+
+                        {/* Current Item Card */}
+                        {currentPlanItem ? (
+                            <div className="bg-black/40 border border-neutral-700/50 rounded-xl p-4 relative z-10">
+                                <div className="text-xs text-neutral-500 uppercase tracking-widest mb-3">Next in Queue</div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div><span className="text-neutral-500">Shot:</span> <span className="text-white ml-2">{currentPlanItem.shot}</span></div>
+                                    <div><span className="text-neutral-500">Lighting:</span> <span className="text-white ml-2">{currentPlanItem.lighting}</span></div>
+                                    <div><span className="text-neutral-500">Emotion:</span> <span className="text-white ml-2">{currentPlanItem.expression}</span></div>
+                                    <div><span className="text-neutral-500">Outfit:</span> <span className="text-white ml-2">{currentPlanItem.outfit}</span></div>
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-neutral-800 text-xs text-neutral-400 italic">
+                                    "{currentPlanItem.description}"
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 text-green-400 relative z-10">
+                                Dataset Generation Complete! 🎉
+                            </div>
+                        )}
+
+                        {/* Button */}
+                        <div className="mt-6 flex justify-end relative z-10">
+                            <button
+                                onClick={handleDatasetGenerate}
+                                disabled={isGenerating || !referenceImage || datasetIndex >= DATASET_PLAN.length}
+                                className={`
+                                    flex items-center space-x-2 px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all
+                                    ${isGenerating 
+                                        ? 'bg-neutral-800 cursor-not-allowed opacity-80' 
+                                        : datasetIndex >= DATASET_PLAN.length 
+                                            ? 'bg-green-600 cursor-not-allowed'
+                                            : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:shadow-violet-900/30 hover:scale-105'}
+                                `}
+                            >
+                                {isGenerating ? (
+                                    <>
+                                        <RefreshCw className="animate-spin" size={18} />
+                                        <span>Generating {datasetIndex + 1}...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Layers size={18} />
+                                        <span>Generate Image {datasetIndex + 1} / {DATASET_PLAN.length}</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+              )}
 
               {/* Gallery */}
               <div className="space-y-4">
@@ -258,7 +388,7 @@ function App() {
                             <Layers size={24} className="opacity-50" />
                         </div>
                         <p>No variations generated yet.</p>
-                        <p className="text-xs">Upload a reference and define a prompt to start building your LoRA dataset.</p>
+                        <p className="text-xs">Select a mode and start generating.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -271,26 +401,38 @@ function App() {
                                         className="w-full h-full object-contain"
                                         loading="lazy"
                                     />
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-4 backdrop-blur-sm">
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2 backdrop-blur-sm">
                                         <button 
-                                            onClick={() => handleDownload(img.url, img.id)}
-                                            className="p-3 bg-white text-black rounded-full hover:bg-neutral-200 transition-colors transform hover:scale-110"
-                                            title="Download High Res"
+                                            onClick={() => handleDownloadImage(img.url, img.id)}
+                                            className="p-3 bg-white text-black rounded-full hover:bg-neutral-200 transition-transform transform hover:scale-110"
+                                            title="Download Image"
                                         >
                                             <Download size={20} />
                                         </button>
                                         <button 
+                                            onClick={() => handleDownloadCaption(img.caption, img.id)}
+                                            className="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-transform transform hover:scale-110"
+                                            title="Download Caption (.txt)"
+                                        >
+                                            <FileText size={20} />
+                                        </button>
+                                        <button 
                                             onClick={() => handleDelete(img.id)}
-                                            className="p-3 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500 hover:text-white transition-colors transform hover:scale-110"
+                                            className="p-3 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500 hover:text-white transition-transform transform hover:scale-110"
                                             title="Delete Asset"
                                         >
                                             <Trash2 size={20} />
                                         </button>
                                     </div>
+                                    {img.isDataset && (
+                                        <div className="absolute top-2 left-2 bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">
+                                            DATASET
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="p-4">
-                                    <p className="text-sm text-neutral-300 line-clamp-2" title={img.prompt}>
-                                        {img.prompt}
+                                    <p className="text-sm text-neutral-300 line-clamp-2" title={img.caption}>
+                                        {img.caption}
                                     </p>
                                     <div className="flex items-center justify-between mt-3 text-xs text-neutral-500">
                                         <span>{new Date(img.timestamp).toLocaleTimeString()}</span>
