@@ -5,6 +5,8 @@ export interface GeneratedImage {
   caption: string; // For .txt file content
   timestamp: number;
   isDataset?: boolean;
+  datasetId?: number; // Links back to DATASET_PLAN id
+  isAnalyzing?: boolean; // True while Vision AI is generating the caption
 }
 
 export enum AspectRatio {

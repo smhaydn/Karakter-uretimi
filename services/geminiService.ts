@@ -116,3 +116,61 @@ export const generatePersonaImage = async (
     throw error;
   }
 };
+
+/**
+ * Analyzes the generated image to create a perfect LoRA training caption.
+ */
+export const generateVisionCaption = async (
+  imageBase64: string,
+  triggerWord: string
+): Promise<string> => {
+  const apiKey = await ensureApiKey();
+  if (!apiKey) return "";
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  // Extract pure base64
+  const base64Data = imageBase64.split(',')[1] || imageBase64;
+  
+  const prompt = `
+    Analyze this image for AI image model training (LoRA/Flux dataset).
+    Start the caption with the trigger word: "${triggerWord}".
+    
+    Format: Comma-separated tags and short phrases. Lowcase.
+    
+    Structure the caption in this order:
+    1. Trigger word
+    2. Shot type (e.g., close up, full body)
+    3. Subject description (hair, ethnicity, gaze)
+    4. Action/Pose
+    5. Outfit (detailed)
+    6. Environment/Background
+    7. Lighting quality (e.g., hard shadow, soft window light)
+    8. Technical details (e.g., blurry background, film grain, flash photography)
+    
+    Example output:
+    ${triggerWord}, close up portrait of a woman, looking at camera, messy bun, wearing a grey hoodie, indoors, window light, hard shadows, film grain, high quality
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-image-preview', // Using Pro for best vision analysis
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/png',
+              data: base64Data
+            }
+          },
+          { text: prompt }
+        ]
+      }
+    });
+
+    return response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  } catch (error) {
+    console.error("Caption Generation Error:", error);
+    return ""; // Fallback to empty string (will keep original prompt-based caption)
+  }
+};

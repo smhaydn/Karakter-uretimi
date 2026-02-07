@@ -11,12 +11,18 @@ import {
   ListTodo,
   Sparkles,
   Film,
-  Aperture
+  Aperture,
+  Package,
+  Eye,
+  Repeat
 } from 'lucide-react';
+
+import JSZip from 'jszip';
+import saveAs from 'file-saver';
 
 import { ApiKeyManager } from './components/ApiKeyManager';
 import { ImageUploader } from './components/ImageUploader';
-import { generatePersonaImage } from './services/geminiService';
+import { generatePersonaImage, generateVisionCaption } from './services/geminiService';
 import { GeneratedImage, AspectRatio, ImageSize } from './types';
 import { DATASET_PLAN } from './utils/datasetPlan';
 
@@ -42,6 +48,8 @@ function App() {
 
   // Common State
   const [isGenerating, setIsGenerating] = useState(false);
+  // Track specific regeneration states by ID
+  const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set());
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   
   // Settings
@@ -60,7 +68,11 @@ function App() {
       alert("Please enter a prompt.");
       return;
     }
-    await executeGeneration(prompt, "Free Roam Generation");
+    
+    setIsGenerating(true);
+    // Initial caption is the prompt itself, will be refined by Vision AI
+    await executeGenerationFlow(prompt, prompt, false);
+    setIsGenerating(false);
   };
 
   const handleDatasetGenerate = async () => {
@@ -74,46 +86,119 @@ function App() {
     }
 
     const item = DATASET_PLAN[datasetIndex];
-    
-    // Construct the structured prompt
-    // Structure: [Shot] of a woman, [Expression], wearing [Outfit], [Lighting], [Description]
     const structuredPrompt = `${item.shot} of a woman, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting. ${item.description}`;
-    
-    // Construct the Caption for the TXT file with Raw/Analog tags if enabled
-    // UPDATED: Added tags that match the new engine logic (smartphone quality, skin texture)
-    const rawTags = isRawMode 
-      ? ", smartphone camera, subtle sensor grain, detailed skin texture, visible pores, natural oil sheen, unedited, candid" 
-      : ", 8k, hyper realistic, high quality";
-    
-    const caption = `${triggerWord}, ${item.shot} of a woman, ${item.description}, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting${rawTags}`;
+    const initialCaption = `${triggerWord}, ${item.shot} of a woman, ${item.description}, ${item.expression}, ${item.outfit}, ${item.lighting}`;
 
-    await executeGeneration(structuredPrompt, caption, true);
-    
-    // Advance progress
+    setIsGenerating(true);
+    await executeGenerationFlow(structuredPrompt, initialCaption, true, item.id);
     setDatasetIndex(prev => prev + 1);
+    setIsGenerating(false);
   };
 
-  const executeGeneration = async (promptText: string, captionText: string, isDataset: boolean = false) => {
-    setIsGenerating(true);
+  const handleRegenerate = async (img: GeneratedImage) => {
+    if (!referenceImage) {
+      alert("Reference image missing.");
+      return;
+    }
+
+    // Add to regenerating set
+    setRegeneratingIds(prev => new Set(prev).add(img.id));
+
     try {
+        let promptToUse = img.prompt;
+        
+        // If it's a dataset item, reconstruct prompt from plan to ensure consistency
+        if (img.isDataset && img.datasetId) {
+            const planItem = DATASET_PLAN.find(p => p.id === img.datasetId);
+            if (planItem) {
+                promptToUse = `${planItem.shot} of a woman, ${planItem.expression} expression, wearing ${planItem.outfit}, ${planItem.lighting} lighting. ${planItem.description}`;
+            }
+        }
+
+        // Generate Image
+        const images = await generatePersonaImage({
+            prompt: promptToUse,
+            referenceImage,
+            aspectRatio, // Use current settings
+            imageSize,
+            isRawMode
+        });
+
+        const newImageUrl = images[0];
+
+        // Update Image URL immediately, set analyzing state
+        setGeneratedImages(prev => prev.map(item => 
+            item.id === img.id 
+                ? { ...item, url: newImageUrl, isAnalyzing: true } 
+                : item
+        ));
+
+        // Generate Vision Caption
+        const visionCaption = await generateVisionCaption(newImageUrl, triggerWord);
+
+        // Update Caption
+        setGeneratedImages(prev => prev.map(item => 
+            item.id === img.id 
+                ? { ...item, caption: visionCaption || item.caption, isAnalyzing: false } 
+                : item
+        ));
+
+    } catch (error: any) {
+        alert("Regeneration failed: " + error.message);
+    } finally {
+        setRegeneratingIds(prev => {
+            const next = new Set(prev);
+            next.delete(img.id);
+            return next;
+        });
+    }
+  };
+
+  const executeGenerationFlow = async (promptText: string, initialCaption: string, isDataset: boolean, datasetId?: number) => {
+    try {
+      // 1. Generate Image
       const images = await generatePersonaImage({
         prompt: promptText,
         referenceImage,
         aspectRatio,
         imageSize,
-        isRawMode // Pass the toggle state
+        isRawMode
       });
 
-      const newImages = images.map(url => ({
-        id: generateId(),
-        url,
+      const tempId = generateId();
+      
+      // 2. Add to UI immediately with "Analyzing..." state
+      const newImage: GeneratedImage = {
+        id: tempId,
+        url: images[0],
         prompt: promptText,
-        caption: captionText, // Save the calculated caption
+        caption: initialCaption,
         timestamp: Date.now(),
-        isDataset
-      }));
+        isDataset,
+        datasetId,
+        isAnalyzing: true
+      };
+      
+      setGeneratedImages(prev => [newImage, ...prev]);
 
-      setGeneratedImages(prev => [...newImages, ...prev]);
+      // 3. Generate Vision Caption (Background Process)
+      // We don't await this to block the UI, but we update state when done
+      generateVisionCaption(images[0], triggerWord).then(visionCaption => {
+        if (visionCaption) {
+            setGeneratedImages(prev => prev.map(img => 
+                img.id === tempId 
+                    ? { ...img, caption: visionCaption, isAnalyzing: false } 
+                    : img
+            ));
+        } else {
+             setGeneratedImages(prev => prev.map(img => 
+                img.id === tempId 
+                    ? { ...img, isAnalyzing: false } 
+                    : img
+            ));
+        }
+      });
+
     } catch (error: any) {
       if (error.message === "API_KEY_INVALID") {
           alert("API Key invalid or expired. Please re-select your key.");
@@ -121,8 +206,6 @@ function App() {
       } else {
           alert("Generation failed: " + (error.message || "Unknown error"));
       }
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -145,6 +228,31 @@ function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleBatchDownload = async () => {
+    if (generatedImages.length === 0) return;
+
+    const zip = new JSZip();
+    const imagesFolder = zip.folder("images");
+    const captionsFolder = zip.folder("captions");
+
+    if (!imagesFolder || !captionsFolder) return;
+
+    // Helper to fetch base64 data cleanly
+    const getBase64Data = (url: string) => url.split(',')[1];
+
+    generatedImages.forEach((img, index) => {
+        // Filename: 001_triggerword.png / .txt
+        const padIndex = (generatedImages.length - index).toString().padStart(3, '0'); // Reverse index since we prepend
+        const fileName = `${triggerWord.split(' ')[0]}_${padIndex}`;
+        
+        imagesFolder.file(`${fileName}.png`, getBase64Data(img.url), { base64: true });
+        captionsFolder.file(`${fileName}.txt`, img.caption);
+    });
+
+    const content = await zip.generateAsync({ type: "blob" });
+    saveAs(content, "dataset_bundle.zip");
   };
 
   const handleDelete = (id: string) => {
@@ -407,7 +515,18 @@ function App() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-2">
                     <h3 className="text-lg font-semibold text-white">Generation History</h3>
-                    <span className="text-sm text-neutral-500">{generatedImages.length} Assets Created</span>
+                    <div className="flex items-center gap-3">
+                        {generatedImages.length > 0 && (
+                            <button 
+                                onClick={handleBatchDownload}
+                                className="flex items-center space-x-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm text-white transition-colors border border-neutral-700"
+                            >
+                                <Package size={16} />
+                                <span>Download Dataset (ZIP)</span>
+                            </button>
+                        )}
+                        <span className="text-sm text-neutral-500">{generatedImages.length} Assets</span>
+                    </div>
                 </div>
                 
                 {generatedImages.length === 0 ? (
@@ -426,9 +545,26 @@ function App() {
                                     <img 
                                         src={img.url} 
                                         alt="Generated variation" 
-                                        className="w-full h-full object-contain"
+                                        className={`w-full h-full object-contain transition-opacity duration-300 ${regeneratingIds.has(img.id) ? 'opacity-50' : 'opacity-100'}`}
                                         loading="lazy"
                                     />
+                                    
+                                    {/* Analyzing Overlay */}
+                                    {img.isAnalyzing && !regeneratingIds.has(img.id) && (
+                                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex flex-col items-center justify-center space-y-2 animate-in fade-in">
+                                            <Eye className="text-violet-400 animate-pulse" size={24} />
+                                            <span className="text-xs font-medium text-violet-200">Vision AI Captioning...</span>
+                                        </div>
+                                    )}
+
+                                    {/* Regenerating Overlay */}
+                                    {regeneratingIds.has(img.id) && (
+                                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center space-y-2">
+                                            <RefreshCw className="text-white animate-spin" size={24} />
+                                            <span className="text-xs font-medium text-white">Regenerating...</span>
+                                        </div>
+                                    )}
+
                                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2 backdrop-blur-sm">
                                         <button 
                                             onClick={() => handleDownloadImage(img.url, img.id)}
@@ -445,6 +581,13 @@ function App() {
                                             <FileText size={20} />
                                         </button>
                                         <button 
+                                            onClick={() => handleRegenerate(img)}
+                                            className="p-3 bg-violet-600 text-white rounded-full hover:bg-violet-500 transition-transform transform hover:scale-110"
+                                            title="Regenerate This Variant"
+                                        >
+                                            <Repeat size={20} />
+                                        </button>
+                                        <button 
                                             onClick={() => handleDelete(img.id)}
                                             className="p-3 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500 hover:text-white transition-transform transform hover:scale-110"
                                             title="Delete Asset"
@@ -453,15 +596,17 @@ function App() {
                                         </button>
                                     </div>
                                     {img.isDataset && (
-                                        <div className="absolute top-2 left-2 bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">
-                                            DATASET
+                                        <div className="absolute top-2 left-2 bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-10">
+                                            DATASET {img.datasetId ? `#${img.datasetId}` : ''}
                                         </div>
                                     )}
                                 </div>
                                 <div className="p-4">
-                                    <p className="text-sm text-neutral-300 line-clamp-2" title={img.caption}>
-                                        {img.caption}
-                                    </p>
+                                    <div className="flex items-start justify-between">
+                                        <p className="text-sm text-neutral-300 line-clamp-3 leading-relaxed flex-1" title={img.caption}>
+                                            {img.caption}
+                                        </p>
+                                    </div>
                                     <div className="flex items-center justify-between mt-3 text-xs text-neutral-500">
                                         <span>{new Date(img.timestamp).toLocaleTimeString()}</span>
                                         <span className="uppercase">{imageSize}</span>
