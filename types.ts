@@ -7,6 +7,14 @@ export interface GeneratedImage {
   isDataset?: boolean;
   datasetId?: number; // Links back to DATASET_PLAN id
   isAnalyzing?: boolean; // True while Vision AI is generating the caption
+  qualityScore?: number; // 1-10 score from AI Curator
+  isAnchor?: boolean; // If true, this image is used to reinforce identity in future steps
+}
+
+export interface AnchorImage {
+  id: string;
+  url: string; // Base64
+  score: number;
 }
 
 export enum AspectRatio {
