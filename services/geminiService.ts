@@ -126,6 +126,12 @@ export const generatePersonaImage = async (
     3. SEPARATION: IGNORE the pose, background, and clothing of ${identityIndex}. ONLY take the face.
     4. VARIETY: The output must look COMPLETELY different from ${identityIndex} in terms of lighting, angle, and scenario.
     5. FORMAT: Generate a SINGLE, FRAMELESS, FULL-BLEED PHOTOGRAPH. Do NOT create a character sheet, collage, or document.
+
+    [HAIR & IDENTITY PRESERVATION - CRITICAL]
+    - Analyze the hair in ${identityIndex}. You MUST PRESERVE the specific Hair Color and Hair Length/Volume.
+    - If the reference has long hair, the output MUST have long hair. 
+    - You MAY change the hairstyle (e.g., messy bun, ponytail, wind-blown, tucked behind ears) to fit the scene.
+    - You MUST NOT shave the head, make the subject bald, or drastically cut the hair length unless explicitly asked in the prompt.
   `;
 
   let anchorInstruction = "";
@@ -148,7 +154,7 @@ export const generatePersonaImage = async (
     - Lighting: Must match the scene description, NOT the reference image.
 
     [NEGATIVE PROMPT]
-    drawing, sketch, illustration, 3d render, plastic skin, same pose as reference, floating limbs, deformed hands, text, writing, watermark, signature, border, frame, white background margin, collage, montage, multiple views, character sheet layout, typography, handwritten notes, split screen.
+    bald, shaved head, buzz cut, no hair, receding hairline, drawing, sketch, illustration, 3d render, plastic skin, same pose as reference, floating limbs, deformed hands, text, writing, watermark, signature, border, frame, white background margin, collage, montage, multiple views, character sheet layout, typography, handwritten notes, split screen.
     `;
   } else {
     finalPrompt = `
@@ -159,7 +165,7 @@ export const generatePersonaImage = async (
     Style: 8k resolution, cinematic lighting, photorealistic, highly detailed.
     
     [NEGATIVE PROMPT]
-    text, watermark, border, frame, paper, document, collage, character sheet, multiple angles, split view.
+    bald, shaved head, buzz cut, text, watermark, border, frame, paper, document, collage, character sheet, multiple angles, split view.
     `;
   }
 

@@ -11,11 +11,11 @@ import { DatasetItem } from "../types";
 
 export const DATASET_PLAN: DatasetItem[] = [
   // --- ANATOMY STRUCTURE (1-5) --- 
-  // Changed "Character Sheet" to direct camera angles to avoid text/borders in generation.
-  { id: 1, shot: "Front View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Passport style photo, perfectly symmetrical face, looking directly at camera, ears visible, neutral background, 50mm lens" },
-  { id: 2, shot: "Side Profile Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "90 degree side view of face, distinct nose shape, jawline definition, hair tucked behind ear, neutral background" },
-  { id: 3, shot: "Back View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "View from behind, hair structure and length, neck and shoulder width, no face visible, neutral background" },
-  { id: 4, shot: "3/4 Angle Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "45 degree angle turn, both eyes visible but one slightly further, definition of cheekbones, neutral background" },
+  // Refined for Virtual Influencers: Ensuring hair presence while showing face structure.
+  { id: 1, shot: "Front View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Passport style photo, perfectly symmetrical face, looking directly at camera, hair tucked behind ears to show jawline, neutral background, 50mm lens" },
+  { id: 2, shot: "Side Profile Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "90 degree side view of face, distinct nose shape, jawline definition, hair pulled back or tucked, neutral background" },
+  { id: 3, shot: "Back View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "View from behind showing hair structure and length clearly, neck and shoulder width, no face visible, neutral background" },
+  { id: 4, shot: "3/4 Angle Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "45 degree angle turn, both eyes visible but one slightly further, hair styling visible but off-face, neutral background" },
   { id: 5, shot: "High Angle Portrait", expression: "Looking up", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Camera above eye level looking down (bird's eye view face), forehead and nose bridge emphasis, cute angle, neutral background" },
 
   // --- EXTREME CLOSE-UP (6-10) --- Focus: Skin texture, eyes, lips
