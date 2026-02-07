@@ -23,13 +23,14 @@ export const generateSketch = async (
   const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
-    Create a HIGHLY DYNAMIC, EXAGGERATED gesture drawing or storyboard sketch for: "${poseDescription}".
+    Create a BOLD, FULL-CANVAS COMPOSITION SKETCH for: "${poseDescription}".
     
     CRITICAL INSTRUCTIONS:
     - FORCE A NEW PERSPECTIVE: Do not just draw a front-facing person. Use high angles, low angles, or side profiles as implied by the description.
     - DYNAMIC LINES: Use strong action lines. The pose must be distinct and readable.
     - MINIMALISM: Black thick lines on white background. No shading.
     - NO FACIAL DETAILS: Leave the face blank/empty.
+    - NO TEXT/BORDERS: Do NOT draw a frame, do NOT write text, do NOT make a storyboard. Fill the entire aspect ratio with the subject.
     - CROP: Ensure the sketch matches the requested aspect ratio fully.
   `;
 
@@ -124,6 +125,7 @@ export const generatePersonaImage = async (
     2. IDENTITY SOURCE (${identityIndex}): You MUST strictly copy the facial features (eyes, nose, mouth structure) from this image.
     3. SEPARATION: IGNORE the pose, background, and clothing of ${identityIndex}. ONLY take the face.
     4. VARIETY: The output must look COMPLETELY different from ${identityIndex} in terms of lighting, angle, and scenario.
+    5. FORMAT: Generate a SINGLE, FRAMELESS, FULL-BLEED PHOTOGRAPH. Do NOT create a character sheet, collage, or document.
   `;
 
   let anchorInstruction = "";
@@ -146,7 +148,7 @@ export const generatePersonaImage = async (
     - Lighting: Must match the scene description, NOT the reference image.
 
     [NEGATIVE PROMPT]
-    drawing, sketch, illustration, 3d render, plastic skin, same pose as reference, floating limbs, deformed hands.
+    drawing, sketch, illustration, 3d render, plastic skin, same pose as reference, floating limbs, deformed hands, text, writing, watermark, signature, border, frame, white background margin, collage, montage, multiple views, character sheet layout, typography, handwritten notes, split screen.
     `;
   } else {
     finalPrompt = `
@@ -155,6 +157,9 @@ export const generatePersonaImage = async (
     
     Subject: ${config.prompt}
     Style: 8k resolution, cinematic lighting, photorealistic, highly detailed.
+    
+    [NEGATIVE PROMPT]
+    text, watermark, border, frame, paper, document, collage, character sheet, multiple angles, split view.
     `;
   }
 

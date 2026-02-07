@@ -1,22 +1,22 @@
 import { DatasetItem } from "../types";
 
 // Distribution Logic:
-// 1-5: Character Sheet (Structure) - FIXED
+// 1-5: Anatomy Structure (Critical for LoRA)
 // 6-10: Extreme Close-up
 // 11-25: Portrait
 // 26-33: Medium Shot
 // 34-40: Full Body
-// 41-45: Cinematic/Artistic (New)
+// 41-45: Cinematic/Artistic
 // Total: 45 Images
 
 export const DATASET_PLAN: DatasetItem[] = [
-  // --- CHARACTER SHEET (1-5) --- CRITICAL: Teaches 3D Structure & Anatomy
-  // Fixed Outfit & Lighting to ensure the model focuses ONLY on geometry/features.
-  { id: 1, shot: "Character Sheet: Front View", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Passport style photo, perfectly symmetrical face, looking directly at camera, ears visible, neutral background, 50mm lens" },
-  { id: 2, shot: "Character Sheet: Side Profile", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "90 degree side view of face, distinct nose shape, jawline definition, hair tucked behind ear, neutral background" },
-  { id: 3, shot: "Character Sheet: Back View", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "View from behind, hair structure and length, neck and shoulder width, no face visible, neutral background" },
-  { id: 4, shot: "Character Sheet: 3/4 Angle", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "45 degree angle turn, both eyes visible but one slightly further, definition of cheekbones, neutral background" },
-  { id: 5, shot: "Character Sheet: High Angle", expression: "Looking up", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Camera above eye level looking down (bird's eye view face), forehead and nose bridge emphasis, cute angle, neutral background" },
+  // --- ANATOMY STRUCTURE (1-5) --- 
+  // Changed "Character Sheet" to direct camera angles to avoid text/borders in generation.
+  { id: 1, shot: "Front View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Passport style photo, perfectly symmetrical face, looking directly at camera, ears visible, neutral background, 50mm lens" },
+  { id: 2, shot: "Side Profile Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "90 degree side view of face, distinct nose shape, jawline definition, hair tucked behind ear, neutral background" },
+  { id: 3, shot: "Back View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "View from behind, hair structure and length, neck and shoulder width, no face visible, neutral background" },
+  { id: 4, shot: "3/4 Angle Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "45 degree angle turn, both eyes visible but one slightly further, definition of cheekbones, neutral background" },
+  { id: 5, shot: "High Angle Portrait", expression: "Looking up", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Camera above eye level looking down (bird's eye view face), forehead and nose bridge emphasis, cute angle, neutral background" },
 
   // --- EXTREME CLOSE-UP (6-10) --- Focus: Skin texture, eyes, lips
   { id: 6, shot: "Extreme Close-up", expression: "Flirty", lighting: "Candlelight", outfit: "Lace choker", description: "Soft warm glow, focus depth very shallow, blurry ears" },
