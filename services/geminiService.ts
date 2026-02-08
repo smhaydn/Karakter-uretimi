@@ -28,7 +28,7 @@ export const generateSketch = async (
 
     [STRICT CAMERA RULES]
     1. IF text contains "Front" -> Draw a perfectly symmetrical stick figure facing forward.
-    2. IF text contains "Side" or "Profile" -> Draw a figure facing 90° Right. NO EXCEPTIONS. The nose must be the furthest point.
+    2. IF text contains "Side" or "Profile" -> Draw a figure facing 90° Right. NO EXCEPTIONS. Nose must be the furthest point.
     3. IF text contains "Back" -> Draw the back of the head.
     4. IF text contains "High Angle" -> Draw a grid on the floor to show perspective looking down.
 
@@ -159,11 +159,12 @@ export const generatePersonaImage = async (
     [SCENE DESCRIPTION]
     ${config.prompt}
 
-    [STYLE GUIDE]
-    - Candid Lifestyle Photography.
-    - 35mm Film Look (Grain, slight imperfections).
-    - Natural Lighting (No studio gloss unless specified).
-    - Texture: Focus on fabric weaves and skin pores.
+    [PHOTOGRAPHY SIGNATURE]
+    - Shot on: Kodak Portra 400 Film (Medium Format).
+    - Lens: Leica Summilux 50mm f/1.4.
+    - Texture: VISIBLE FILM GRAIN, natural skin pores, vellus hair, slight motion blur on edges.
+    - Lighting: Natural, imperfect, "available light". NO plastic studio gloss.
+    - IMPERFECTIONS: Allow slight asymmetry, flyaway hairs, and natural skin texture variation.
 
     [NEGATIVE PROMPT]
     cartoon, drawing, illustration, 3d render, plastic skin, airbrushed, neon, fantasy, sci-fi, cyberpunk, makeup, text, watermark, border, frame, split screen, multiple views, collage, deformed hands.
