@@ -103,19 +103,19 @@ function App() {
 
          // --- PHASE 2: GENERATION (Multi-Reference) ---
          setPilotPhase('GENERATING');
-         console.log(`[AutoPilot] Phase 2: Generating Final Image with ${anchorImages.length} anchors`);
+         console.log(`[AutoPilot] Phase 2: Generating Final Image...`);
          
          const structuredPrompt = `${item.shot} of a woman, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting. ${item.description}`;
          
          // Generate Image (Pass 2)
-         // Uses: Ref Image + Sketch + Anchors
+         // NOTE: Removed anchorImages from the call to ensure diversity and stick to original identity
          const images = await generatePersonaImage({
             prompt: structuredPrompt,
             referenceImage,
             aspectRatio,
             imageSize,
             isRawMode
-         }, sketchUrl, anchorImages);
+         }, sketchUrl, []); // Passing empty array for anchors
          
          const generatedUrl = images[0];
 
@@ -128,7 +128,7 @@ function App() {
 
          // Quality Gate (Score < 7)
          // If bad score AND we haven't retried 3 times yet
-         if (score < 7 && retryCount < 2) {
+         if (score < 6 && retryCount < 2) {
              console.warn(`[AutoPilot] Low quality (${score}). Retrying (${retryCount + 1}/3)...`);
              setRetryCount(prev => prev + 1);
              // Recursive call to retry (start from generation, keep sketch)
@@ -146,16 +146,9 @@ function App() {
          
          // Add to UI temporarily while captioning
          const tempId = generateId();
-         const isHighQuality = score >= 8;
          
-         // If high quality, add to anchors (keep max 3)
-         if (isHighQuality) {
-             setAnchorImages(prev => {
-                 const newAnchor = { id: tempId, url: generatedUrl, score };
-                 const updated = [newAnchor, ...prev].sort((a, b) => b.score - a.score).slice(0, 3);
-                 return updated;
-             });
-         }
+         // NOTE: We do NOT update anchorImages here anymore.
+         // This prevents the "Model Collapse" where images start looking like each other.
 
          const newImage: GeneratedImage = {
             id: tempId,
@@ -167,7 +160,7 @@ function App() {
             datasetId: item.id,
             isAnalyzing: true,
             qualityScore: score,
-            isAnchor: isHighQuality
+            isAnchor: false // Disabled anchor marking
          };
 
          setGeneratedImages(prev => [newImage, ...prev]);
@@ -227,13 +220,15 @@ function App() {
     
     setIsGenerating(true);
     try {
+        // No anchors for free generate either
         const images = await generatePersonaImage({
             prompt,
             referenceImage,
             aspectRatio,
             imageSize,
             isRawMode
-        });
+        }, null, []); 
+
         const url = images[0];
         const tempId = generateId();
         
@@ -272,7 +267,7 @@ function App() {
               aspectRatio,
               imageSize,
               isRawMode
-          });
+          }, null, []); // No anchors
           const url = images[0];
           const tempId = generateId();
           setGeneratedImages(prev => [{
@@ -424,28 +419,7 @@ function App() {
               </div>
 
               {/* Anchor Images (Identity Buffer) */}
-              {anchorImages.length > 0 && (
-                  <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 space-y-4">
-                    <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                        <Anchor size={16} className="text-blue-400" />
-                        Identity Anchors
-                        <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full ml-auto">Active</span>
-                    </h2>
-                    <div className="grid grid-cols-3 gap-2">
-                        {anchorImages.map(anchor => (
-                            <div key={anchor.id} className="relative aspect-square rounded-lg overflow-hidden border border-blue-500/30">
-                                <img src={anchor.url} alt="Anchor" className="w-full h-full object-cover" />
-                                <div className="absolute bottom-0 right-0 bg-black/70 text-white text-[9px] px-1">
-                                    {anchor.score}/10
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <p className="text-[10px] text-neutral-500 leading-tight">
-                        The AI uses these generated images to reinforce the model's identity in future steps.
-                    </p>
-                  </div>
-              )}
+              {/* Removed Visual for Anchors since we disabled the logic, keeping it clean */}
 
               {/* Mode Selection */}
               <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-2 flex">
@@ -733,7 +707,6 @@ function App() {
                                     {img.isDataset && (
                                         <div className="absolute top-2 left-2 flex flex-col gap-1">
                                             <div className="bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">DATASET #{img.datasetId}</div>
-                                            {img.isAnchor && <div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg flex items-center gap-1"><Anchor size={8}/> ANCHOR</div>}
                                         </div>
                                     )}
                                 </div>

@@ -95,81 +95,61 @@ export const generatePersonaImage = async (
     });
   }
 
-  // 3. ANCHOR REFERENCES (Consistency Feedback Loop)
-  if (anchorReferences && anchorReferences.length > 0) {
-    anchorReferences.slice(0, 2).forEach(anchor => {
-        const base64Anchor = anchor.url.split(',')[1] || anchor.url;
-        parts.push({
-            inlineData: {
-                mimeType: 'image/png',
-                data: base64Anchor
-            }
-        });
-    });
-  }
+  // NOTE: Anchor references are deliberately IGNORED to prevent model collapse/sameness.
+  // We want to force the model to look at the ORIGINAL reference every time.
 
-  // --- STRICT PROMPT ENGINEERING ---
+  // --- REBALANCED PROMPT ENGINEERING ---
   let finalPrompt = "";
   
-  // New "De-Coupling" Strategy
   const sketchIndex = sketchReference ? "Image 1" : "None";
   const identityIndex = sketchReference ? "Image 2" : "Image 1";
-  const anchorStartIndex = sketchReference ? 3 : 2;
 
   const coreInstruction = `
     [TASK]
-    Generate a 100% PHOTOREALISTIC, LIFESTYLE PHOTOGRAPH by fusing the POSE from ${sketchIndex} with the IDENTITY from ${identityIndex}.
+    Perform a high-fidelity "CONTEXT SWAP". Take the Head and Face from ${identityIndex}, and place it into the Body and Environment described in the prompt below.
 
-    [IDENTITY LOCK - CRITICAL]
-    - The face in the output MUST be a 1:1 BIOLOGICAL CLONE of the person in ${identityIndex}.
-    - Copy: Eye shape, eye color, nose structure, lip shape, mole placement, jawline.
-    - If the reference image has imperfections (asymmetry, pores, scars), YOU MUST KEEP THEM. Do not "beautify" or "cartoonify" the face.
-    - Skin Texture: Must be hyper-realistic. Visible pores, vellus hair, natural skin tone variation. NO PLASTIC SKIN.
+    [FACE & IDENTITY (PRIORITY: HIGH)]
+    - You MUST use the face from ${identityIndex}.
+    - Copy: Eye shape, color, nose, mouth, ears, and jawline exactly.
+    - Keep skin texture details (pores, moles) to ensure it looks like the SAME person.
+    - Do NOT make the face look "generic". It must match the reference unique features.
 
-    [CLOTHING BARRIER - ABSOLUTE LAW]
-    - IGNORE the clothing in the reference image.
-    - You MUST generate the outfit described in the prompt below with 100% FABRIC PHYSICS ACCURACY.
-    - If prompt says "Wool Sweater", I need to see the fuzzy wool texture. If "Leather", I need to see the grain and specular highlights.
-    - Do not blend the reference outfit into the new image.
+    [BODY & OUTFIT (PRIORITY: HIGH)]
+    - IGNORE the body pose and outfit in ${identityIndex}. 
+    - Instead, use the pose from ${sketchIndex} (if provided) and the outfit described below.
+    - If the reference is wearing a white tank top, but the prompt says "Leather Jacket", you MUST draw a Leather Jacket. 
+    - Treat ${identityIndex} as a "Headshot Reference" only.
 
-    [HAIR PRESERVATION]
-    - PRESERVE the Hair Color and Length from ${identityIndex}.
-    - Style can match the prompt (e.g., messy bun), but volume and color must match the person.
-    - NO BALD/SHAVED heads unless requested.
+    [HAIR LOGIC]
+    - Keep the hair color and general length from ${identityIndex}.
+    - You MAY adjust the hair styling (messy, windblown, tied back) to match the scene description.
   `;
-
-  let anchorInstruction = "";
-  if (anchorReferences && anchorReferences.length > 0) {
-      anchorInstruction = `[IDENTITY ANCHORS (Images ${anchorStartIndex}+)]: Use these ONLY to confirm skin texture and mole placement. Ignore their poses.`;
-  }
 
   if (config.isRawMode) {
     finalPrompt = `
     ${coreInstruction}
-    ${anchorInstruction}
 
     [SCENE DESCRIPTION]
     ${config.prompt}
 
-    [AESTHETIC & FILM LOOK]
-    - STYLE: Candid Lifestyle Photography (National Geographic / Vogue Editorial).
-    - CAMERA: Shot on 35mm film (Kodak Portra 400 or Fujifilm simulation).
-    - LIGHTING: Natural, motivated lighting. NO NEON. NO FANTASY GLOW.
-    - TEXTURE: High frequency details. Clothing must look touchable.
+    [STYLE GUIDE]
+    - Candid Lifestyle Photography.
+    - 35mm Film Look (Grain, slight imperfections).
+    - Natural Lighting (No studio gloss unless specified).
+    - Texture: Focus on fabric weaves and skin pores.
 
     [NEGATIVE PROMPT]
-    neon, cyberpunk, sci-fi, fantasy, drawing, sketch, illustration, 3d render, cgi, plastic skin, airbrushed, cartoon, anime, doll-like, smooth skin, glowing eyes, magic, sparks, studio background, deformed hands, floating limbs, text, watermark, border, frame, collage, character sheet, multiple views, split screen, bald, shaved head.
+    cartoon, drawing, illustration, 3d render, plastic skin, airbrushed, neon, fantasy, sci-fi, cyberpunk, makeup, text, watermark, border, frame, split screen, multiple views, collage, deformed hands.
     `;
   } else {
     finalPrompt = `
     ${coreInstruction}
-    ${anchorInstruction}
     
     Subject: ${config.prompt}
-    Style: 8k resolution, photorealistic, cinematic lifestyle photography.
+    Style: Photorealistic lifestyle photography.
     
     [NEGATIVE PROMPT]
-    neon, fantasy, cartoon, illustration, bald, shaved head, buzz cut, text, watermark, border, frame, paper, document, collage, character sheet, multiple angles, split view, cgi, 3d render.
+    cartoon, illustration, low quality, blurry, text, watermark, border, frame, split screen, multiple views.
     `;
   }
 
