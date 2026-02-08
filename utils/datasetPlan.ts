@@ -1,7 +1,7 @@
 
 import { DatasetItem } from "../types";
 
-export const GLOBAL_NEGATIVE_PROMPT = "same pose as reference, looking at camera (unless specified), stiff posture, mugshot, passport photo, frozen stance, duplicating reference angle, deformed hands, plastic skin, 3d render, cartoon, anime, illustration, bad anatomy, blur, low quality, grayscale, monochrome (unless specified), text, watermark";
+export const GLOBAL_NEGATIVE_PROMPT = "same pose as reference, repetitive angle, stiff posture, mugshot, passport photo, looking at camera (unless specified), deformed hands, plastic skin, 3d render, cartoon, anime, illustration, bad anatomy, blur, low quality, grayscale, monochrome (unless specified), text, watermark, frozen face, duplicate expression";
 
 // Distribution Logic:
 // 1-3: Structural Anchors (White Tank / Studio) - Essential for basic face ID.

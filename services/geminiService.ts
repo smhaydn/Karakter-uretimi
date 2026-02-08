@@ -28,7 +28,7 @@ const cropToFaceFeature = async (base64Str: string): Promise<string> => {
                 return;
             }
 
-            const cropScale = 0.55; // Slightly larger to capture full head shape, but strict on shoulders
+            const cropScale = 0.55; 
             const cropWidth = img.width * cropScale;
             const cropHeight = img.height * cropScale;
 
@@ -54,54 +54,57 @@ const cropToFaceFeature = async (base64Str: string): Promise<string> => {
 
 // --- UTILITY: REFERENCE SELECTOR (THE DIRECTOR) ---
 // Decides which reference slots to actually send to the AI based on the requested pose.
-// Prevents "Pose Contamination" (e.g. sending a side profile when asking for a front view).
 const selectReferencesForContext = (
     refMap: ReferenceMap, 
     prompt: string
 ): { slot: string, data: string, method: 'crop' | 'full' }[] => {
     
-    const promptLower = prompt.toLowerCase();
+    const p = prompt.toLowerCase();
     const selectedRefs: { slot: string, data: string, method: 'crop' | 'full' }[] = [];
 
-    // Detect Intent
-    const isFrontView = promptLower.includes("front view") || promptLower.includes("mugshot") || promptLower.includes("looking directly");
-    const isSideView = promptLower.includes("side profile") || promptLower.includes("side view") || promptLower.includes("90°");
-    const isBackView = promptLower.includes("back view") || promptLower.includes("from behind");
+    const addRef = (slotId: string, method: 'crop' | 'full') => {
+        if (refMap[slotId]) {
+            selectedRefs.push({ slot: slotId, data: refMap[slotId]!, method });
+        }
+    };
 
-    console.log(`[Context Logic] Intent detected: ${isFrontView ? 'FRONT' : isSideView ? 'SIDE' : 'GENERAL'}`);
+    console.log(`[Smart Gating] Analyzing Prompt: "${prompt.substring(0, 30)}..."`);
 
-    // LOGIC 1: FRONT VIEW REQUEST
-    // Strict Rule: If we want Front View, DESTROY all Side/Angle references. They are poison.
-    if (isFrontView) {
-        if (refMap['front']) selectedRefs.push({ slot: 'front', data: refMap['front'], method: 'crop' });
-        // We permit expression for texture, but crop it heavily
-        if (refMap['expression']) selectedRefs.push({ slot: 'expression', data: refMap['expression'], method: 'crop' });
-        
-        // EXCLUDE: side, side90, threeQuarter
-    }
+    // SCENARIO 1: SIDE PROFILE (90 Degree)
+    if (p.includes("side") || p.includes("profile") || p.includes("90")) {
+        console.log(">> MODE: SIDE PROFILE (Removing Front View)");
+        // CRITICAL: DUMP THE FRONT VIEW. It confuses the model.
+        addRef('side90', 'full'); // Primary
+        addRef('side', 'full');   // Fallback
+        // Do NOT add front.
+    } 
     
-    // LOGIC 2: SIDE VIEW REQUEST
-    // Rule: We need the side profile structure.
-    else if (isSideView) {
-        // Prioritize Side Refs as FULL (we need the nose shape)
-        if (refMap['side90']) selectedRefs.push({ slot: 'side90', data: refMap['side90'], method: 'full' });
-        else if (refMap['side']) selectedRefs.push({ slot: 'side', data: refMap['side'], method: 'full' });
-        
-        // Add Front view ONLY for skin texture reference, but CROP IT so the AI doesn't try to rotate the head
-        if (refMap['front']) selectedRefs.push({ slot: 'front', data: refMap['front'], method: 'crop' });
+    // SCENARIO 2: BACK VIEW (No Face)
+    else if (p.includes("back") || p.includes("behind")) {
+        console.log(">> MODE: BACK VIEW (Removing Faces)");
+        // CRITICAL: SEND NO FACES. Only Body/Hair.
+        addRef('threeQuarter', 'full'); // Hair/Body Ref
+        addRef('side', 'full');         // Hair Ref
+        // Do NOT add front.
     }
 
-    // LOGIC 3: GENERAL / LIFESTYLE
-    // Rule: Use a mix, but prioritize Front for identity.
+    // SCENARIO 3: EXPRESSION (Smile/Laugh)
+    else if (p.includes("smile") || p.includes("laugh") || p.includes("happy")) {
+        console.log(">> MODE: EXPRESSION");
+        addRef('expression', 'crop'); // The guide for the mouth
+        addRef('front', 'crop');      // The guide for identity (cropped heavily)
+    }
+
+    // SCENARIO 4: STANDARD PORTRAIT (Default)
     else {
-        if (refMap['front']) selectedRefs.push({ slot: 'front', data: refMap['front'], method: 'crop' });
-        if (refMap['threeQuarter']) selectedRefs.push({ slot: 'threeQuarter', data: refMap['threeQuarter'], method: 'full' });
-        if (refMap['expression']) selectedRefs.push({ slot: 'expression', data: refMap['expression'], method: 'crop' });
+        console.log(">> MODE: STANDARD PORTRAIT");
+        addRef('front', 'crop');        // Primary Identity Bible
+        addRef('threeQuarter', 'full'); // Depth Ref
     }
 
-    // Fallback: If logic filtered everything out (rare), just return front or whatever is available
+    // Failsafe: If nothing selected, force Front
     if (selectedRefs.length === 0 && refMap['front']) {
-         selectedRefs.push({ slot: 'front', data: refMap['front'], method: 'crop' });
+         addRef('front', 'crop');
     }
 
     return selectedRefs;
@@ -171,15 +174,12 @@ export const generatePersonaImage = async (
   }
 
   // 2. SMART REFERENCE SELECTION (The Filter)
-  // We don't blindly send all 5 images. We pick the ones that match the prompt's intent.
   const activeReferences = selectReferencesForContext(config.referenceImages, config.prompt);
-
-  console.log(`[GeminiService] Using ${activeReferences.length} filtered references for generation.`);
+  console.log(`[GeminiService] Using ${activeReferences.length} filtered references.`);
 
   for (const ref of activeReferences) {
       let finalData = ref.data;
       if (ref.method === 'crop') {
-          // Apply smart crop to isolate features
           const cropped = await cropToFaceFeature(ref.data);
           finalData = cropped.split(',')[1] || cropped;
       } else {
@@ -191,26 +191,25 @@ export const generatePersonaImage = async (
       });
   }
 
-  // 3. PROMPT ENGINEERING
+  // 3. PROMPT ENGINEERING (Identity Lock)
   const isRaw = config.isRawMode;
   
   const finalPrompt = `
     [TASK]
-    Render a photorealistic human based on the provided inputs.
+    This is NOT a creative generation task. This is a TEXTURE MAPPING task.
+    You are given a Skeleton (Sketch Image 1) and a Skin Texture (Reference Images).
     
-    [INPUT MAPPING]
-    - FIRST IMAGE is the POSE GUIDE (Sketch). You MUST align the skeleton to this sketch exactly.
-    - SUBSEQUENT IMAGES are TEXTURE SAMPLES. Use them ONLY for skin tone, eye color, and hair color. IGNORE their pose.
+    [RULE 1: POSE OBEDIENCE]
+    - IGNORE the pose in the Reference Photos. They are just for skin data.
+    - You MUST align the body and head angle to match SKETCH IMAGE 1 exactly.
+    - If the Sketch shows a back view, draw a back view, even if the Reference is a front view.
 
-    [STRICT ALIGNMENT]
-    - If the Sketch (Image 1) shows a Front View, output a Front View, even if the texture samples are side profiles.
-    - If the Sketch shows a Side View, output a Side View.
-    - The Sketch is the Law for Geometry. The Texture Samples are the Law for Color.
+    [RULE 2: BIOLOGICAL CLONE]
+    - The subject is "Lola" (Redhead, freckles, blue-green eyes).
+    - You must preserve: Eye distance, nose shape, lip volume, freckle pattern.
+    - Do NOT "beautify" or "average" the face. Keep the specific quirks of the reference.
 
-    [CHARACTER DETAILS]
-    Lola (Redhead, freckles, blue-green eyes).
-
-    [SCENE]
+    [SCENE & LIGHTING]
     ${config.prompt}
 
     [STYLE]
