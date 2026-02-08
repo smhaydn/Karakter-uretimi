@@ -14,8 +14,60 @@ async function ensureApiKey(): Promise<string | undefined> {
   return process.env.API_KEY;
 }
 
+// --- UTILITY: SMART CROP (THE POSE KILLER) ---
+// Cuts out shoulders, neck, and background context, leaving only identity features.
+// This forces the model to use the reference as a "Texture Map" rather than a "Pose Guide".
+const cropToFaceFeature = async (base64Str: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous"; // Handle potential CORS if needed
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                resolve(base64Str); // Fallback
+                return;
+            }
+
+            const size = Math.min(img.width, img.height);
+            
+            // AGGRESSIVE CROP STRATEGY:
+            // We want to capture the eyes, nose, and mouth, but EXCLUDE the chin line, ears, and neck.
+            // Excluding the neck/shoulders prevents "Pose Leakage" (model copying the stance).
+            
+            const cropScale = 0.50; // Keep only 50% of the center image. Very tight face crop.
+            
+            const cropWidth = img.width * cropScale;
+            const cropHeight = img.height * cropScale; // Square crop
+
+            // Calculate center
+            const centerX = img.width / 2;
+            const centerY = img.height / 2;
+
+            // Shift slightly up to prioritize eyes over chin (Chin often implies head tilt)
+            const offsetYAdjustment = img.height * 0.05; 
+
+            const startX = centerX - (cropWidth / 2);
+            const startY = centerY - (cropHeight / 2) - offsetYAdjustment;
+
+            canvas.width = cropWidth;
+            canvas.height = cropHeight;
+
+            // Draw cropped version
+            ctx.drawImage(img, startX, startY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+            
+            // Return new base64
+            resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = (e) => {
+            console.warn("Crop failed, using original", e);
+            resolve(base64Str);
+        };
+        img.src = base64Str;
+    });
+};
+
 // --- 1. AI SKETCH ARTIST (Pass 1) ---
-// Now acts as a Technical Storyboard Artist
 export const generateSketch = async (
   poseDescription: string,
   aspectRatio: AspectRatio
@@ -24,20 +76,18 @@ export const generateSketch = async (
   if (!apiKey) throw new Error("API Key not found");
   const ai = new GoogleGenAI({ apiKey });
 
+  // Simplified Prompt for faster/clearer sketching
   const prompt = `
-    Act as a Technical Storyboard Artist. DRAW A COMPOSITION SKETCH for: "${poseDescription}".
+    Create a high-contrast, black and white LINE DRAWING (Sketch) for this pose:
+    "${poseDescription}"
 
-    [STRICT CAMERA RULES]
-    1. IF text contains "Front" -> Draw a perfectly symmetrical stick figure facing forward.
-    2. IF text contains "Side" or "Profile" -> Draw a figure facing 90° Right. NO EXCEPTIONS. Nose must be the furthest point.
-    3. IF text contains "Back" -> Draw the back of the head.
-    4. IF text contains "High Angle" -> Draw a grid on the floor to show perspective looking down.
-
-    [STYLE]
-    - Use thick, confident black markers.
-    - NO FACES. Draw an oval with a cross (+) to indicate face direction.
-    - NO SHADING. High contrast black & white only.
-    - FILL THE CANVAS. Ensure the sketch matches the requested aspect ratio fully.
+    RULES:
+    - Stick figure or wooden mannequin style.
+    - NO FACIAL FEATURES. Blank face.
+    - NO CLOTHES details. Focus on limb position and head angle.
+    - If "Side View", draw profile facing right.
+    - If "Front View", draw symmetric front.
+    - White background, heavy black lines.
   `;
 
   try {
@@ -63,7 +113,6 @@ export const generateSketch = async (
 };
 
 // --- 2. MULTI-REFERENCE GENERATION (Pass 2) ---
-// Implements Voltran Identity Synthesis with SMART GATING
 export const generatePersonaImage = async (
   config: GenerationConfig,
   sketchReference?: string | null,
@@ -77,11 +126,11 @@ export const generatePersonaImage = async (
 
   const ai = new GoogleGenAI({ apiKey });
   const parts: any[] = [];
-  let imageIndexCounter = 1;
-  const imageMappingInfo: string[] = [];
+  const refMap = config.referenceImages;
 
-  // --- 1. SKETCH REFERENCE (Structure) - ALWAYS FIRST ---
-  let sketchIndex = "None";
+  // --- A. SKETCH REFERENCE (THE SKELETON) ---
+  // This is the primary guide for the POSE.
+  let sketchInstruction = "No sketch provided.";
   if (sketchReference) {
     const base64Sketch = sketchReference.split(',')[1] || sketchReference;
     parts.push({
@@ -90,116 +139,67 @@ export const generatePersonaImage = async (
         data: base64Sketch
       }
     });
-    sketchIndex = `Image ${imageIndexCounter}`;
-    imageIndexCounter++;
-    imageMappingInfo.push(`- ${sketchIndex} (SKETCH - POSE/COMPOSITION BIBLE)`);
+    sketchInstruction = "IMAGE 1 is a POSE SKETCH. You MUST align the subject's body and head angle to match IMAGE 1 exactly.";
   }
 
-  // --- 2. SMART REFERENCE GATING (The Filter) ---
-  const refMap = config.referenceImages;
+  // --- B. IDENTITY REFERENCES (THE SKIN) ---
+  // We use the "Smart Crop" logic here to prevent pose leakage.
   
-  // Helper to add image part and log it for prompt
-  const addRef = (slot: string, desc: string) => {
-    const imgData = refMap[slot];
-    if (imgData) {
-        const base64 = imgData.split(',')[1] || imgData;
-        parts.push({ inlineData: { mimeType: 'image/png', data: base64 } });
-        imageMappingInfo.push(`- Image ${imageIndexCounter} (${desc})`);
-        imageIndexCounter++;
-    }
-  };
-
-  const p = config.prompt.toLowerCase();
-  let specificIdentityInstruction = "";
-
-  // SCENARIO: SIDE PROFILE (90 Degree)
-  if (p.includes("side") || p.includes("profile") || p.includes("90 degree")) {
-      // CRITICAL: DUMP THE FRONT VIEW. It confuses the model.
-      addRef('side90', 'PRIMARY STRUCTURE - 90 DEGREE PROFILE');
-      addRef('side', 'SECONDARY STRUCTURE - SIDE PROFILE');
-      specificIdentityInstruction = "IGNORE FRONT VIEW. Copy the nose slope and jawline EXACTLY from the Side Profile reference.";
-
-  // SCENARIO: BACK VIEW (No Face)
-  } else if (p.includes("back") || p.includes("behind") || p.includes("walking away")) {
-      // CRITICAL: SEND NO FACES. Only Body/Hair.
-      addRef('threeQuarter', 'HAIR/BODY REF');
-      addRef('side', 'HAIR REF'); 
-      specificIdentityInstruction = "DO NOT DRAW A FACE. Subject is facing away. Focus on hair volume and shoulder structure.";
-
-  // SCENARIO: EXPRESSION (Smile/Laugh)
-  } else if (p.includes("smile") || p.includes("laugh") || p.includes("happy") || p.includes("joy")) {
-      addRef('expression', 'EXPRESSION REFERENCE (TEETH/EYES)');
-      addRef('front', 'IDENTITY BASE'); // We need front view for likeness, but expression guides the mouth.
-      specificIdentityInstruction = "Morph the face from 'Image 1' into the smile seen in 'Expression Ref'.";
-
-  // SCENARIO: STANDARD PORTRAIT (Default)
-  } else {
-      // Use Front view as bible.
-      addRef('front', 'PRIMARY IDENTITY BIBLE');
-      addRef('threeQuarter', 'DEPTH REF');
-      specificIdentityInstruction = "Create a biological clone of 'Reference Image 1'.";
+  // 1. Front View (Essential) - CROPPED
+  if (refMap['front']) {
+      const croppedFront = await cropToFaceFeature(refMap['front']);
+      parts.push({ 
+          inlineData: { 
+              mimeType: 'image/png', 
+              data: croppedFront.split(',')[1] 
+          } 
+      });
   }
 
-  const refContextBlock = imageMappingInfo.join('\n');
+  // 2. Side/90 View (Optional) - FULL (Because side profile shape is needed for structure)
+  // We don't crop side views as aggressively because the jawline shape is crucial geometry.
+  if (refMap['side90'] || refMap['side']) {
+      const sideRef = refMap['side90'] || refMap['side'];
+      if (sideRef) {
+          parts.push({ 
+            inlineData: { 
+                mimeType: 'image/png', 
+                data: sideRef.split(',')[1] 
+            } 
+        });
+      }
+  }
 
-  // --- REBALANCED PROMPT ENGINEERING ---
-  let finalPrompt = "";
+  // --- C. PROMPT ENGINEERING (THE BRAIN) ---
+  const isRaw = config.isRawMode;
+  
+  const finalPrompt = `
+    [ROLE]
+    You are an advanced texture-mapping AI. Your goal is to render a photorealistic person by combining a POSE SKETCH (Image 1) with ID TEXTURES (Other Images).
 
-  const coreInstruction = `
-    [TASK]
-    This is NOT a creative generation task. This is a TEXTURE MAPPING task.
-    You are given a Skeleton (Sketch Image 1) and a Skin Texture (Reference Images).
-    
-    [RULE 1: POSE OBEDIENCE]
-    - IGNORE the pose in the Reference Photos. They are just for skin data.
-    - You MUST align the body and head angle to match ${sketchIndex} exactly.
-    - If the Sketch shows a back view, draw a back view, even if the Reference is a front view.
+    [INPUT ANALYSIS]
+    - IMAGE 1: The POSE GUIDE. (Skeleton). Follow this geometry strictly.
+    - OTHER IMAGES: The ID TEXTURES. (Skin, Eyes, Hair Color). 
+    - Note: The ID images are cropped close-ups. Do NOT copy their camera angle. Just take the features.
 
-    [RULE 2: BIOLOGICAL CLONE]
-    - The subject is "Lola kizil woman".
-    - You must preserve: Eye distance, nose shape, lip volume, freckle pattern.
-    - Do NOT "beautify" or "average" the face. Keep the specific quirks of the reference.
-    - If the output does not look like the twin sister of the reference, it is a FAILURE.
+    [STRICT INSTRUCTION]
+    1. Draw the character "Lola" (Redhead, fair skin, freckles).
+    2. USE THE POSE from IMAGE 1. 
+       - If Sketch looks left, Lola looks left.
+       - If Sketch is far away, Lola is far away.
+    3. APPLY THE FACE from the ID Images.
+       - Transfer the freckle pattern, eye color (Green/Blue), and nose shape.
+       - Do NOT transfer the "Front View" stare if the sketch is a "Side View".
 
-    [INPUT CONTEXT]
-    Use the following image map to understand the character's 3D geometry:
-    ${refContextBlock}
-    
-    [IDENTITY LOGIC]
-    ${specificIdentityInstruction}
-
-    [BODY & OUTFIT]
-    - IGNORE the clothes in the reference images. Use the outfit described below.
-  `;
-
-  if (config.isRawMode) {
-    finalPrompt = `
-    ${coreInstruction}
-
-    [SCENE DESCRIPTION]
+    [SCENE & STYLE]
     ${config.prompt}
 
-    [PHOTOGRAPHY SIGNATURE]
-    - Shot on: Kodak Portra 400 Film (Medium Format).
-    - Lens: Leica Summilux 50mm f/1.4.
-    - Texture: VISIBLE FILM GRAIN, natural skin pores, vellus hair, slight motion blur on edges.
-    - Lighting: Natural, imperfect, "available light". NO plastic studio gloss.
-    - IMPERFECTIONS: Allow slight asymmetry, flyaway hairs, and natural skin texture variation.
-
-    [NEGATIVE PROMPT]
-    ${GLOBAL_NEGATIVE_PROMPT}
-    `;
-  } else {
-    finalPrompt = `
-    ${coreInstruction}
-    
-    Subject: ${config.prompt}
-    Style: Photorealistic lifestyle photography.
+    [PHOTOGRAPHY SETTINGS]
+    ${isRaw ? "Style: Analog Film, Kodak Portra 400. Grainy, imperfect, natural lighting." : "Style: High-end digital photography, sharp, studio lighting."}
     
     [NEGATIVE PROMPT]
-    cartoon, illustration, low quality, blurry, text, watermark, border, frame, split screen, multiple views.
-    `;
-  }
+    ${GLOBAL_NEGATIVE_PROMPT}, stiff pose, mugshot, passport photo, looking at camera (unless sketch does), 3d render, plastic skin.
+  `;
 
   parts.push({ text: finalPrompt });
 
@@ -216,17 +216,15 @@ export const generatePersonaImage = async (
     });
 
     const generatedImages: string[] = [];
-
     if (response.candidates && response.candidates[0].content && response.candidates[0].content.parts) {
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData && part.inlineData.data) {
-          const base64Image = `data:image/png;base64,${part.inlineData.data}`;
-          generatedImages.push(base64Image);
+          generatedImages.push(`data:image/png;base64,${part.inlineData.data}`);
         }
       }
     }
-
     return generatedImages;
+
   } catch (error: any) {
     console.error("Gemini Generation Error:", error);
     if (error.message && error.message.includes("Requested entity was not found")) {
@@ -236,7 +234,7 @@ export const generatePersonaImage = async (
   }
 };
 
-// --- 3. AI CURATOR (The Judge) ---
+// --- 3. AI CURATOR ---
 export const evaluateImageQuality = async (
     imageBase64: string
 ): Promise<number> => {
@@ -246,20 +244,18 @@ export const evaluateImageQuality = async (
     const base64Data = imageBase64.split(',')[1] || imageBase64;
 
     const prompt = `
-        Act as a strict photography curator for a LoRA training dataset.
-        Analyze this image and rate it from 1 to 10 based on these criteria:
-        1. Anatomical Correctness (Hands, eyes, limbs must be perfect).
-        2. Face Clarity (Sharp focus, distinct features).
-        3. Photorealism (Lighting, texture).
+        Rate this image (1-10) for a LoRA training dataset.
+        Criteria:
+        1. Is the face clear and anatomically correct?
+        2. Are hands formed correctly (if visible)?
+        3. Is it photorealistic?
         
-        If the image has deformed hands, extra fingers, or blurred face, score it below 5.
-        
-        OUTPUT FORMAT: Just return the single number (integer). Example: 8
+        Return ONLY the integer number.
     `;
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-image-preview', // Vision capable model
+            model: 'gemini-3-pro-image-preview',
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/png', data: base64Data } },
@@ -267,70 +263,43 @@ export const evaluateImageQuality = async (
                 ]
             }
         });
-
         const text = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         const score = parseInt(text || "0", 10);
         return isNaN(score) ? 0 : score;
     } catch (error) {
-        console.error("Evaluation Error:", error);
         return 0;
     }
 }
 
-/**
- * Analyzes the generated image to create a perfect LoRA training caption.
- */
+// --- 4. VISION CAPTIONING ---
 export const generateVisionCaption = async (
   imageBase64: string,
   triggerWord: string
 ): Promise<string> => {
   const apiKey = await ensureApiKey();
   if (!apiKey) return "";
-
   const ai = new GoogleGenAI({ apiKey });
-
-  // Extract pure base64
   const base64Data = imageBase64.split(',')[1] || imageBase64;
   
   const prompt = `
-    Analyze this image for AI image model training (LoRA/Flux dataset).
-    Start the caption with the trigger word: "${triggerWord}".
-    
-    Format: Comma-separated tags and short phrases. Lowcase.
-    
-    Structure the caption in this order:
-    1. Trigger word
-    2. Shot type (e.g., close up, full body)
-    3. Subject description (hair, ethnicity, gaze)
-    4. Action/Pose
-    5. Outfit (detailed)
-    6. Environment/Background
-    7. Lighting quality (e.g., hard shadow, soft window light)
-    8. Technical details (e.g., blurry background, film grain, flash photography)
-    
-    Example output:
-    ${triggerWord}, close up portrait of a woman, looking at camera, messy bun, wearing a grey hoodie, indoors, window light, hard shadows, film grain, high quality
+    Write a comma-separated caption for AI training.
+    Start with: "${triggerWord}".
+    Describe: View type, Subject details, Pose, Outfit, Lighting, Background.
+    Keep it factual and visual.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview', // Using Pro for best vision analysis
+      model: 'gemini-3-pro-image-preview',
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: 'image/png',
-              data: base64Data
-            }
-          },
+          { inlineData: { mimeType: 'image/png', data: base64Data } },
           { text: prompt }
         ]
       }
     });
-
     return response.candidates?.[0]?.content?.parts?.[0]?.text || "";
   } catch (error) {
-    console.error("Caption Generation Error:", error);
-    return ""; // Fallback to empty string (will keep original prompt-based caption)
+    return "";
   }
 };
