@@ -83,6 +83,7 @@ function App() {
   const isAutoPilotRef = useRef(false);
 
   const [pilotPhase, setPilotPhase] = useState<AutoPilotPhase>('IDLE');
+  // retryCount is kept for UI display if needed, but logic removed
   const [retryCount, setRetryCount] = useState(0);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentSketch, setCurrentSketch] = useState<string | null>(null);
@@ -159,14 +160,8 @@ function App() {
          // CHECKPOINT 3: Stop if user clicked stop during judging
          if (!isAutoPilotRef.current) return;
 
-         // Quality Gate (Score < 6)
-         if (score < 6 && retryCount < 2) {
-             console.warn(`[AutoPilot] Low quality (${score}). Retrying (${retryCount + 1}/3)...`);
-             setRetryCount(prev => prev + 1);
-             setTimeout(() => runAutoPilotStep(), 2000);
-             return;
-         }
-
+         // BUG FIX: REMOVED RETRY LOOP
+         // We simply proceed regardless of score to keep the factory moving.
          setRetryCount(0); 
          setCurrentSketch(null);
          
@@ -199,6 +194,7 @@ function App() {
                 : img
          ));
 
+         console.log(`[AutoPilot] Moving to next item: ${datasetIndex + 1} -> ${datasetIndex + 2}`);
          setDatasetIndex(prev => prev + 1);
 
          // --- PHASE 5: WAITING (Rate Limit) ---

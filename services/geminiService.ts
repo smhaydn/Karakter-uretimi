@@ -54,13 +54,15 @@ const cropToFaceFeature = async (base64Str: string): Promise<string> => {
 
 // --- UTILITY: REFERENCE SELECTOR (THE DIRECTOR) ---
 // Decides which reference slots to actually send to the AI based on the requested pose.
+// Now returns both the selected references AND a specific instruction for the model.
 const selectReferencesForContext = (
     refMap: ReferenceMap, 
     prompt: string
-): { slot: string, data: string, method: 'crop' | 'full' }[] => {
+): { refs: { slot: string, data: string, method: 'crop' | 'full' }[], instruction: string } => {
     
     const p = prompt.toLowerCase();
     const selectedRefs: { slot: string, data: string, method: 'crop' | 'full' }[] = [];
+    let specificInstruction = "";
 
     const addRef = (slotId: string, method: 'crop' | 'full') => {
         if (refMap[slotId]) {
@@ -76,7 +78,8 @@ const selectReferencesForContext = (
         // CRITICAL: DUMP THE FRONT VIEW. It confuses the model.
         addRef('side90', 'full'); // Primary
         addRef('side', 'full');   // Fallback
-        // Do NOT add front.
+        
+        specificInstruction = "IGNORE FRONT VIEW. Copy the nose slope and jawline EXACTLY from the Side Profile reference.";
     } 
     
     // SCENARIO 2: BACK VIEW (No Face)
@@ -85,7 +88,8 @@ const selectReferencesForContext = (
         // CRITICAL: SEND NO FACES. Only Body/Hair.
         addRef('threeQuarter', 'full'); // Hair/Body Ref
         addRef('side', 'full');         // Hair Ref
-        // Do NOT add front.
+        
+        specificInstruction = "DO NOT DRAW A FACE. Subject is facing away. Focus on hair volume and shoulder structure.";
     }
 
     // SCENARIO 3: EXPRESSION (Smile/Laugh)
@@ -93,6 +97,8 @@ const selectReferencesForContext = (
         console.log(">> MODE: EXPRESSION");
         addRef('expression', 'crop'); // The guide for the mouth
         addRef('front', 'crop');      // The guide for identity (cropped heavily)
+        
+        specificInstruction = "Morph the face from 'Image 1' into the smile seen in 'Expression Ref'.";
     }
 
     // SCENARIO 4: STANDARD PORTRAIT (Default)
@@ -100,6 +106,8 @@ const selectReferencesForContext = (
         console.log(">> MODE: STANDARD PORTRAIT");
         addRef('front', 'crop');        // Primary Identity Bible
         addRef('threeQuarter', 'full'); // Depth Ref
+        
+        specificInstruction = "Create a biological clone of 'Reference Image 1'.";
     }
 
     // Failsafe: If nothing selected, force Front
@@ -107,7 +115,7 @@ const selectReferencesForContext = (
          addRef('front', 'crop');
     }
 
-    return selectedRefs;
+    return { refs: selectedRefs, instruction: specificInstruction };
 }
 
 
@@ -174,7 +182,7 @@ export const generatePersonaImage = async (
   }
 
   // 2. SMART REFERENCE SELECTION (The Filter)
-  const activeReferences = selectReferencesForContext(config.referenceImages, config.prompt);
+  const { refs: activeReferences, instruction: specificInstruction } = selectReferencesForContext(config.referenceImages, config.prompt);
   console.log(`[GeminiService] Using ${activeReferences.length} filtered references.`);
 
   for (const ref of activeReferences) {
@@ -208,6 +216,9 @@ export const generatePersonaImage = async (
     - The subject is "Lola" (Redhead, freckles, blue-green eyes).
     - You must preserve: Eye distance, nose shape, lip volume, freckle pattern.
     - Do NOT "beautify" or "average" the face. Keep the specific quirks of the reference.
+
+    [IDENTITY LOGIC]
+    ${specificInstruction}
 
     [SCENE & LIGHTING]
     ${config.prompt}
