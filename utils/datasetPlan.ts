@@ -1,3 +1,4 @@
+
 import { DatasetItem } from "../types";
 
 // Distribution Logic:
@@ -6,10 +7,31 @@ import { DatasetItem } from "../types";
 // Focus: Authentic textures (Cotton, Denim, Silk), Real environments, Natural lighting.
 
 export const DATASET_PLAN: DatasetItem[] = [
-  // --- ANCHOR STRUCTURE (1-3) --- 
-  { id: 1, shot: "Front View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "Passport style photo, perfectly symmetrical face, looking directly at camera, hair tucked behind ears, neutral background" },
-  { id: 2, shot: "Side Profile Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "90 degree side view of face, distinct nose shape, jawline definition, hair pulled back, neutral background" },
-  { id: 3, shot: "Back View Portrait", expression: "Neutral", lighting: "Studio Flat Lighting", outfit: "White tank top", description: "View from behind showing hair structure and length clearly, neck and shoulder width, no face visible, neutral background" },
+  // --- ANCHOR STRUCTURE (1-3) - CLINICAL GROUND TRUTH --- 
+  { 
+    id: 1, 
+    shot: "Technical Front View (Mugshot)", 
+    expression: "Zero Emotion", 
+    lighting: "Flat Studio Lighting", 
+    outfit: "White tank top", 
+    description: "Clinical mugshot, perfect symmetry, 50mm lens, ears visible, neutral background, sharp focus on eyes." 
+  },
+  { 
+    id: 2, 
+    shot: "Medical Side Profile (90° Left)", 
+    expression: "Neutral", 
+    lighting: "Flat Studio Lighting", 
+    outfit: "White tank top", 
+    description: "Dermatology reference photo, strict 90-degree profile, white background, focus on nose bridge and jawline silhouette, hair pulled back." 
+  },
+  { 
+    id: 3, 
+    shot: "Anatomical Back View", 
+    expression: "Neutral", 
+    lighting: "Flat Studio Lighting", 
+    outfit: "White tank top", 
+    description: "Posture analysis photo, view from behind, neutral stance, showing shoulders and hair volume, no head turn." 
+  },
 
   // --- LIFESTYLE & REALISM (4-45) --- 
   { id: 4, shot: "Coffee Shop Candid", expression: "Thoughtful", lighting: "Window Side Light", outfit: "Beige cashmere turtle neck sweater", description: "Sitting at a wooden table, steam rising from coffee, blurred cafe background, cozy atmosphere" },

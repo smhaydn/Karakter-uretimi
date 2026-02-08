@@ -14,7 +14,7 @@ async function ensureApiKey(): Promise<string | undefined> {
 }
 
 // --- 1. AI SKETCH ARTIST (Pass 1) ---
-// Now more aggressive on dynamic poses
+// Now acts as a Technical Storyboard Artist
 export const generateSketch = async (
   poseDescription: string,
   aspectRatio: AspectRatio
@@ -24,15 +24,19 @@ export const generateSketch = async (
   const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
-    Create a BOLD, FULL-CANVAS COMPOSITION SKETCH for: "${poseDescription}".
-    
-    CRITICAL INSTRUCTIONS:
-    - FORCE A NEW PERSPECTIVE: Do not just draw a front-facing person. Use high angles, low angles, or side profiles as implied by the description.
-    - DYNAMIC LINES: Use strong action lines. The pose must be distinct and readable.
-    - MINIMALISM: Black thick lines on white background. No shading.
-    - NO FACIAL DETAILS: Leave the face blank/empty.
-    - NO TEXT/BORDERS: Do NOT draw a frame, do NOT write text, do NOT make a storyboard. Fill the entire aspect ratio with the subject.
-    - CROP: Ensure the sketch matches the requested aspect ratio fully.
+    Act as a Technical Storyboard Artist. DRAW A COMPOSITION SKETCH for: "${poseDescription}".
+
+    [STRICT CAMERA RULES]
+    1. IF text contains "Front" -> Draw a perfectly symmetrical stick figure facing forward.
+    2. IF text contains "Side" or "Profile" -> Draw a figure facing 90° Right. NO EXCEPTIONS. The nose must be the furthest point.
+    3. IF text contains "Back" -> Draw the back of the head.
+    4. IF text contains "High Angle" -> Draw a grid on the floor to show perspective looking down.
+
+    [STYLE]
+    - Use thick, confident black markers.
+    - NO FACES. Draw an oval with a cross (+) to indicate face direction.
+    - NO SHADING. High contrast black & white only.
+    - FILL THE CANVAS. Ensure the sketch matches the requested aspect ratio fully.
   `;
 
   try {
@@ -58,6 +62,7 @@ export const generateSketch = async (
 };
 
 // --- 2. MULTI-REFERENCE GENERATION (Pass 2) ---
+// Implements Voltran Identity Synthesis
 export const generatePersonaImage = async (
   config: GenerationConfig,
   sketchReference?: string | null,
@@ -111,6 +116,19 @@ export const generatePersonaImage = async (
 
   const refContextBlock = imageMappingInfo.join('\n');
 
+  // --- VOLTRAN IDENTITY LOGIC ---
+  // Analyze prompt to determine which reference is King
+  let specificIdentityInstruction = "Use 'FRONT VIEW' as the primary facial reference, but map it onto the 3D structure implied by the Sketch.";
+  
+  const p = config.prompt.toLowerCase();
+  if (p.includes("side") || p.includes("profile") || p.includes("90 degree")) {
+      specificIdentityInstruction = "CRITICAL: For this Side View, disregard the Front View reference. STRICTLY COPY the nose shape and jawline from the '90 DEGREE SIDE PROFILE' or 'SIDE PROFILE' reference images.";
+  } else if (p.includes("smile") || p.includes("laugh") || p.includes("happy") || p.includes("joy")) {
+      specificIdentityInstruction = "CRITICAL: Use the 'EXPRESSION REF' image as the primary reference for teeth, mouth shape, and eye crinkles.";
+  } else if (p.includes("back") || p.includes("behind")) {
+      specificIdentityInstruction = "CRITICAL: Focus on the hair volume and shoulder structure. Do NOT force a face to be visible if the sketch shows a back view.";
+  }
+
   // --- REBALANCED PROMPT ENGINEERING ---
   let finalPrompt = "";
 
@@ -125,8 +143,7 @@ export const generatePersonaImage = async (
 
     [IDENTITY SYNTHESIS (CRITICAL)]
     - You must construct a mental 3D model of this person by combining ALL the reference images provided.
-    - If generating a side profile, strictly use the "SIDE PROFILE" reference for the nose shape and jawline.
-    - If generating a smile, refer to the "EXPRESSION REF" (if provided) for teeth and eye crinkles.
+    - ${specificIdentityInstruction}
     - Maintain consistent skin texture, moles, and eye distance across all angles.
     - DO NOT blend features with generic faces. It must look exactly like the reference person.
 

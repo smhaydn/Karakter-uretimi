@@ -78,6 +78,10 @@ function App() {
   
   // Factory Mode State
   const [isAutoPilot, setIsAutoPilot] = useState(false);
+  
+  // Ref to track auto-pilot state instantly (avoids closure staleness)
+  const isAutoPilotRef = useRef(false);
+
   const [pilotPhase, setPilotPhase] = useState<AutoPilotPhase>('IDLE');
   const [retryCount, setRetryCount] = useState(0);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -102,12 +106,12 @@ function App() {
 
   // --- Auto-Pilot Loop ---
   const runAutoPilotStep = async () => {
-     if (!isAutoPilot || !hasRequiredReference) return;
+     // Use Ref for immediate check
+     if (!isAutoPilotRef.current || !hasRequiredReference) return;
 
      // Safety Check
      if (datasetIndex >= DATASET_PLAN.length) {
-         setIsAutoPilot(false);
-         setPilotPhase('IDLE');
+         stopAutoPilot();
          return;
      }
 
@@ -120,6 +124,10 @@ function App() {
          
          const sketchPrompt = `${item.shot}, ${item.expression} expression, ${item.outfit}, body pose: ${item.description}`;
          const sketchUrl = await generateSketch(sketchPrompt, aspectRatio);
+         
+         // CHECKPOINT 1: Stop if user clicked stop during sketch
+         if (!isAutoPilotRef.current) return;
+
          setCurrentSketch(sketchUrl);
 
          // --- PHASE 2: GENERATION (Multi-Reference) ---
@@ -136,6 +144,9 @@ function App() {
             isRawMode
          }, sketchUrl, []); 
          
+         // CHECKPOINT 2: Stop if user clicked stop during generation
+         if (!isAutoPilotRef.current) return;
+         
          const generatedUrl = images[0];
 
          // --- PHASE 3: CURATION (The Judge) ---
@@ -144,6 +155,9 @@ function App() {
          
          const score = await evaluateImageQuality(generatedUrl);
          console.log(`[AutoPilot] Judge Score: ${score}/10`);
+
+         // CHECKPOINT 3: Stop if user clicked stop during judging
+         if (!isAutoPilotRef.current) return;
 
          // Quality Gate (Score < 6)
          if (score < 6 && retryCount < 2) {
@@ -188,21 +202,47 @@ function App() {
          setDatasetIndex(prev => prev + 1);
 
          // --- PHASE 5: WAITING (Rate Limit) ---
+         // CHECKPOINT 4: Stop if user clicked stop before waiting
+         if (!isAutoPilotRef.current) return;
+
          setPilotPhase('WAITING');
          console.log(`[AutoPilot] Step Complete. Waiting 4s...`);
          
          autoPilotTimerRef.current = setTimeout(() => {
-             runAutoPilotStep(); 
+             // Only recurse if still active
+             if (isAutoPilotRef.current) {
+                runAutoPilotStep(); 
+             }
          }, 4000);
 
      } catch (error) {
          console.error("AutoPilot Error:", error);
-         setIsAutoPilot(false);
-         setPilotPhase('IDLE');
+         stopAutoPilot();
          alert("Auto-Pilot stopped due to an error.");
      }
   };
 
+  const stopAutoPilot = () => {
+    setIsAutoPilot(false);
+    isAutoPilotRef.current = false; // Immediate kill switch
+    setPilotPhase('IDLE');
+    if (autoPilotTimerRef.current) clearTimeout(autoPilotTimerRef.current);
+  };
+
+  const startAutoPilot = () => {
+    if (!hasRequiredReference) {
+        alert("Please upload at least the Front View reference.");
+        return;
+    }
+    if (datasetIndex >= DATASET_PLAN.length) {
+        alert("Dataset plan completed.");
+        return;
+    }
+    setIsAutoPilot(true);
+    isAutoPilotRef.current = true; // Enable execution
+  };
+
+  // Trigger effect when starting
   useEffect(() => {
       if (isAutoPilot && pilotPhase === 'IDLE') {
           runAutoPilotStep();
@@ -255,24 +295,6 @@ function App() {
         alert(e.message);
     } finally {
         setIsGenerating(false);
-    }
-  };
-
-  const toggleAutoPilot = () => {
-    if (isAutoPilot) {
-        setIsAutoPilot(false);
-        setPilotPhase('IDLE');
-        if (autoPilotTimerRef.current) clearTimeout(autoPilotTimerRef.current);
-    } else {
-        if (!hasRequiredReference) {
-            alert("Please upload at least the Front View reference.");
-            return;
-        }
-        if (datasetIndex >= DATASET_PLAN.length) {
-            alert("Dataset plan completed.");
-            return;
-        }
-        setIsAutoPilot(true);
     }
   };
 
@@ -593,8 +615,8 @@ function App() {
                         {/* Controls */}
                         <div className="mt-6 flex items-center justify-end gap-4 relative z-10">
                             <button
-                                onClick={toggleAutoPilot}
-                                disabled={datasetIndex >= DATASET_PLAN.length || !hasRequiredReference}
+                                onClick={isAutoPilot ? stopAutoPilot : startAutoPilot}
+                                disabled={datasetIndex >= DATASET_PLAN.length || (!hasRequiredReference && !isAutoPilot)}
                                 className={`
                                     flex items-center space-x-2 px-5 py-3 rounded-xl font-semibold transition-all border w-full justify-center
                                     ${isAutoPilot 
