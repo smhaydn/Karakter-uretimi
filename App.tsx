@@ -81,6 +81,9 @@ function App() {
   
   // Ref to track auto-pilot state instantly (avoids closure staleness)
   const isAutoPilotRef = useRef(false);
+  
+  // Ref to track dataset index instantly (avoids closure staleness in recursion)
+  const datasetIndexRef = useRef(0);
 
   const [pilotPhase, setPilotPhase] = useState<AutoPilotPhase>('IDLE');
   // retryCount is kept for UI display if needed, but logic removed
@@ -104,19 +107,27 @@ function App() {
         [id]: base64
     }));
   };
+  
+  // Sync state to ref
+  useEffect(() => {
+    datasetIndexRef.current = datasetIndex;
+  }, [datasetIndex]);
 
   // --- Auto-Pilot Loop ---
   const runAutoPilotStep = async () => {
      // Use Ref for immediate check
      if (!isAutoPilotRef.current || !hasRequiredReference) return;
 
+     // Use Ref for index to avoid stale closures
+     const currentIndex = datasetIndexRef.current;
+
      // Safety Check
-     if (datasetIndex >= DATASET_PLAN.length) {
+     if (currentIndex >= DATASET_PLAN.length) {
          stopAutoPilot();
          return;
      }
 
-     const item = DATASET_PLAN[datasetIndex];
+     const item = DATASET_PLAN[currentIndex];
      
      try {
          // --- PHASE 1: SKETCHING (Pose Mimicry) ---
@@ -160,8 +171,7 @@ function App() {
          // CHECKPOINT 3: Stop if user clicked stop during judging
          if (!isAutoPilotRef.current) return;
 
-         // BUG FIX: REMOVED RETRY LOOP
-         // We simply proceed regardless of score to keep the factory moving.
+         // NO RETRY LOOP: Proceed regardless of score
          setRetryCount(0); 
          setCurrentSketch(null);
          
@@ -194,8 +204,11 @@ function App() {
                 : img
          ));
 
-         console.log(`[AutoPilot] Moving to next item: ${datasetIndex + 1} -> ${datasetIndex + 2}`);
-         setDatasetIndex(prev => prev + 1);
+         // INCREMENT INDEX
+         const nextIndex = currentIndex + 1;
+         console.log(`[AutoPilot] Moving to next item: ${currentIndex} -> ${nextIndex}`);
+         setDatasetIndex(nextIndex);
+         datasetIndexRef.current = nextIndex; // Immediate update for next loop validity
 
          // --- PHASE 5: WAITING (Rate Limit) ---
          // CHECKPOINT 4: Stop if user clicked stop before waiting

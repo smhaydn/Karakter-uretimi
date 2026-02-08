@@ -3,12 +3,8 @@ import { DatasetItem } from "../types";
 
 export const GLOBAL_NEGATIVE_PROMPT = "same pose as reference, repetitive angle, stiff posture, mugshot, passport photo, looking at camera (unless specified), deformed hands, plastic skin, 3d render, cartoon, anime, illustration, bad anatomy, blur, low quality, grayscale, monochrome (unless specified), text, watermark, frozen face, duplicate expression";
 
-// Distribution Logic:
-// 1-3: Structural Anchors (White Tank / Studio) - Essential for basic face ID.
-// 4-45: REAL LIFE LIFESTYLE (No Fantasy, No Neon). 
-// 46-50: TECHNICAL EDGE CASES (Extreme angles, Macro, Blur) - To force model flexibility.
-
-export const DATASET_PLAN: DatasetItem[] = [
+// --- ARCHIVED PLAN (Items 1-50) ---
+export const DATASET_PLAN_ARCHIVE_50: DatasetItem[] = [
   // --- ANCHOR STRUCTURE (1-3) - CLINICAL GROUND TRUTH --- 
   { 
     id: 1, 
@@ -119,5 +115,61 @@ export const DATASET_PLAN: DatasetItem[] = [
     lighting: "Bright White Studio Background", 
     outfit: "Tight fitting bodysuit", 
     description: "Subject in shadow, focus on body outline and posture, complete silhouette against bright light." 
+  }
+];
+
+// --- ACTIVE: NEW EXTENSION ITEMS (51-56) ---
+// Focused on Swimwear (Body Structure) and Macro Details (Texture Mapping)
+export const DATASET_PLAN: DatasetItem[] = [
+  // Swimwear / Body Structure
+  { 
+    id: 51, 
+    shot: "Poolside Lounging", 
+    expression: "Relaxed", 
+    lighting: "Golden Hour Sun", 
+    outfit: "Red bikini", 
+    description: "Lying on a white lounge chair, sunglasses on head, pool water background, soft warm lighting, full body shot showing limb proportions." 
+  },
+  { 
+    id: 52, 
+    shot: "Beach Water Edge", 
+    expression: "Joyful", 
+    lighting: "High Noon Sun", 
+    outfit: "Black one-piece swimsuit", 
+    description: "Walking out of the ocean, water dripping, wet hair, sharp sunlight, ocean background, dynamic movement." 
+  },
+  { 
+    id: 53, 
+    shot: "Sunbathing Top-Down", 
+    expression: "Closed Eyes", 
+    lighting: "Dappled Shade (Palm Tree)", 
+    outfit: "White bikini", 
+    description: "Lying on a towel, hat covering part of face, tropical shadows on skin, relaxation, high angle view looking down." 
+  },
+
+  // Extreme Close-Ups / Texture Mapping
+  { 
+    id: 54, 
+    shot: "Macro Eye Detail", 
+    expression: "Neutral", 
+    lighting: "Soft Window Light", 
+    outfit: "None (Face Focus)", 
+    description: "Extreme macro close-up of left eye, iris texture, eyelashes, skin pores and freckles clearly visible, 100mm macro lens." 
+  },
+  { 
+    id: 55, 
+    shot: "Macro Lip Texture", 
+    expression: "Slight Part", 
+    lighting: "Studio Ring Light", 
+    outfit: "None (Face Focus)", 
+    description: "Extreme close-up of lips, natural texture, no makeup, fine lines and hydration visible, sharp focus on mouth area." 
+  },
+  { 
+    id: 56, 
+    shot: "Wet Skin Portrait", 
+    expression: "Intense", 
+    lighting: "Sunset Backlight", 
+    outfit: "Swimsuit straps visible", 
+    description: "Post-swim close-up, water droplets on face and shoulders, glowing skin, wet hair slicked back, golden rim lighting." 
   }
 ];

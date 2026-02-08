@@ -173,11 +173,16 @@ export const generatePersonaImage = async (
   const ai = new GoogleGenAI({ apiKey });
   const parts: any[] = [];
   
-  // 1. SKETCH (The Skeleton) - Always First
-  if (sketchReference) {
-    const base64Sketch = sketchReference.split(',')[1] || sketchReference;
+  // 1. SKETCH (The Skeleton) - Safe Check
+  if (sketchReference && sketchReference.includes(',')) {
+    const base64Sketch = sketchReference.split(',')[1];
     parts.push({
       inlineData: { mimeType: 'image/png', data: base64Sketch }
+    });
+  } else if (sketchReference) {
+    // If raw base64 without prefix
+    parts.push({
+      inlineData: { mimeType: 'image/png', data: sketchReference }
     });
   }
 
@@ -186,12 +191,14 @@ export const generatePersonaImage = async (
   console.log(`[GeminiService] Using ${activeReferences.length} filtered references.`);
 
   for (const ref of activeReferences) {
+      if (!ref.data) continue; // Skip empty/null refs
+
       let finalData = ref.data;
       if (ref.method === 'crop') {
           const cropped = await cropToFaceFeature(ref.data);
-          finalData = cropped.split(',')[1] || cropped;
+          finalData = cropped.includes(',') ? cropped.split(',')[1] : cropped;
       } else {
-          finalData = ref.data.split(',')[1] || ref.data;
+          finalData = ref.data.includes(',') ? ref.data.split(',')[1] : ref.data;
       }
       
       parts.push({
