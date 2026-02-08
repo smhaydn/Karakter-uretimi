@@ -1,6 +1,8 @@
 
 import { DatasetItem } from "../types";
 
+export const GLOBAL_NEGATIVE_PROMPT = "same pose, repetitive angle, stiff posture, mugshot, passport photo, looking at camera (unless specified), deformed hands, plastic skin, 3d render, cartoon, anime, illustration, bad anatomy, blur, low quality, grayscale, monochrome (unless specified), text, watermark";
+
 // Distribution Logic:
 // 1-3: Structural Anchors (White Tank / Studio) - Essential for basic face ID.
 // 4-45: REAL LIFE LIFESTYLE (No Fantasy, No Neon). 
@@ -14,7 +16,7 @@ export const DATASET_PLAN: DatasetItem[] = [
     expression: "Zero Emotion", 
     lighting: "Clinical Studio Lighting", 
     outfit: "White tank top", 
-    description: "Clinical studio lighting, zero emotion, perfect symmetry, 85mm lens, ears visible, high frequency skin texture." 
+    description: "Technical Front View (Mugshot), Clinical studio lighting, zero emotion, perfect symmetry, 85mm lens, ears visible, high frequency skin texture." 
   },
   { 
     id: 2, 
@@ -22,7 +24,7 @@ export const DATASET_PLAN: DatasetItem[] = [
     expression: "Neutral", 
     lighting: "Flat Studio Lighting", 
     outfit: "White tank top", 
-    description: "Dermatology reference, strict 90-degree profile, white background, focus on nose bridge and jawline silhouette." 
+    description: "Medical Side Profile (90° Left), Dermatology reference, strict 90-degree profile, white background, focus on nose bridge and jawline silhouette." 
   },
   { 
     id: 3, 
@@ -30,11 +32,11 @@ export const DATASET_PLAN: DatasetItem[] = [
     expression: "Neutral", 
     lighting: "Flat Studio Lighting", 
     outfit: "White tank top", 
-    description: "Posture analysis, neutral stance, showing shoulders and hair volume, no face visible." 
+    description: "Anatomical Back View, Posture analysis, neutral stance, showing shoulders and hair volume, no face visible." 
   },
 
   // --- LIFESTYLE & REALISM (4-45) --- 
-  { id: 4, shot: "Coffee Shop Candid", expression: "Thoughtful", lighting: "Window Side Light", outfit: "Beige cashmere turtle neck sweater", description: "Sitting at a wooden table, steam rising from coffee, blurred cafe background, cozy atmosphere" },
+  { id: 4, shot: "Coffee Shop Candid", expression: "Thoughtful", lighting: "Window Side Light", outfit: "Beige cashmere turtle neck sweater", description: "Sitting at a wooden table, steam rising from coffee, blurred background, f/1.8 aperture bokeh" },
   { id: 5, shot: "Street Crossing", expression: "Confident", lighting: "Overcast City Day", outfit: "Black leather biker jacket and white tee", description: "Walking across street, wind blowing hair, urban city background, depth of field" },
   { id: 6, shot: "Golden Hour Selfie", expression: "Soft Smile", lighting: "Direct Sunset Glow", outfit: "White linen summer dress", description: "Hand holding camera angle, sun flare hitting lens, warm orange tones, park background" },
   { id: 7, shot: "Supermarket Aisle", expression: "Neutral", lighting: "Fluorescent Shop Light", outfit: "Grey oversized hoodie", description: "Holding a product, shelves in background, realistic everyday shopping vibe" },
@@ -84,15 +86,15 @@ export const DATASET_PLAN: DatasetItem[] = [
     expression: "Neutral", 
     lighting: "Soft Ring Light", 
     outfit: "None (Focus on Eye)", 
-    description: "Extreme close-up on one eye and nose bridge, distinct iris texture, skin pores visible, eyelashes in sharp focus." 
+    description: "Extreme close-up on one eye and nose bridge, distinct iris texture, skin pores visible, eyelashes in sharp focus, 100mm macro lens." 
   },
   { 
     id: 47, 
-    shot: "High Angle (CCTV Style)", 
+    shot: "High Angle (CCTV/Drone)", 
     expression: "Looking Up", 
     lighting: "Industrial Overhead", 
     outfit: "Winter Coat", 
-    description: "Security camera angle from ceiling corner, looking down at subject walking, foreshortening perspective." 
+    description: "Security camera view from ceiling corner, looking down at subject walking, foreshortening perspective." 
   },
   { 
     id: 48, 
@@ -100,7 +102,7 @@ export const DATASET_PLAN: DatasetItem[] = [
     expression: "Dominant", 
     lighting: "Backlit Sun", 
     outfit: "Power Suit", 
-    description: "Camera on the ground looking up at subject, boots in foreground, subject towering over camera, blue sky background." 
+    description: "Camera on the ground looking up, subject towering over camera, blue sky background." 
   },
   { 
     id: 49, 
@@ -108,7 +110,7 @@ export const DATASET_PLAN: DatasetItem[] = [
     expression: "Urgent", 
     lighting: "City Night Streaks", 
     outfit: "Running gear", 
-    description: "Subject running, background streaked with motion blur, face relatively sharp but hair moving fast, dynamic energy." 
+    description: "Subject running/walking fast, background streaked with motion blur, dynamic energy." 
   },
   { 
     id: 50, 
@@ -116,6 +118,6 @@ export const DATASET_PLAN: DatasetItem[] = [
     expression: "Unknown", 
     lighting: "Bright White Studio Background", 
     outfit: "Tight fitting bodysuit", 
-    description: "Complete silhouette against bright light, no face details visible, focus purely on body outline and posture." 
+    description: "Subject in shadow, focus on body outline and posture, complete silhouette against bright light." 
   }
 ];

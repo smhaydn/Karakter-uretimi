@@ -70,7 +70,7 @@ function App() {
   
   // Dataset Mode State
   const [datasetIndex, setDatasetIndex] = useState(0);
-  const [triggerWord, setTriggerWord] = useState("ohwx woman");
+  const [triggerWord, setTriggerWord] = useState("Lola kizil woman");
 
   // Common State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -585,6 +585,7 @@ function App() {
                                             pilotPhase === 'SKETCHING' ? 'bg-orange-500/20 text-orange-400' :
                                             pilotPhase === 'GENERATING' ? 'bg-blue-500/20 text-blue-400' :
                                             pilotPhase === 'JUDGING' ? 'bg-purple-500/20 text-purple-400' :
+                                            pilotPhase === 'CAPTIONING' ? 'bg-cyan-500/20 text-cyan-400' :
                                             pilotPhase === 'WAITING' ? 'bg-neutral-700 text-neutral-400' : 'text-white'
                                         }`}>
                                             {pilotPhase === 'SKETCHING' && "1. SKETCHING POSE..."}

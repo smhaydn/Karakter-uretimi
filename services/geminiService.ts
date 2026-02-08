@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { GenerationConfig, AspectRatio, ImageSize, AnchorImage } from "../types";
+import { GLOBAL_NEGATIVE_PROMPT } from "../utils/datasetPlan";
 
 // Helper to validate and get key
 async function ensureApiKey(): Promise<string | undefined> {
@@ -62,7 +63,7 @@ export const generateSketch = async (
 };
 
 // --- 2. MULTI-REFERENCE GENERATION (Pass 2) ---
-// Implements Voltran Identity Synthesis
+// Implements Voltran Identity Synthesis with SMART GATING
 export const generatePersonaImage = async (
   config: GenerationConfig,
   sketchReference?: string | null,
@@ -79,7 +80,7 @@ export const generatePersonaImage = async (
   let imageIndexCounter = 1;
   const imageMappingInfo: string[] = [];
 
-  // --- 1. SKETCH REFERENCE (Structure) ---
+  // --- 1. SKETCH REFERENCE (Structure) - ALWAYS FIRST ---
   let sketchIndex = "None";
   if (sketchReference) {
     const base64Sketch = sketchReference.split(',')[1] || sketchReference;
@@ -91,10 +92,10 @@ export const generatePersonaImage = async (
     });
     sketchIndex = `Image ${imageIndexCounter}`;
     imageIndexCounter++;
+    imageMappingInfo.push(`- ${sketchIndex} (SKETCH - POSE/COMPOSITION BIBLE)`);
   }
 
-  // --- 2. MULTI-VIEW CHARACTER REFERENCES (Identity) ---
-  // Iterate through slots and add available images
+  // --- 2. SMART REFERENCE GATING (The Filter) ---
   const refMap = config.referenceImages;
   
   // Helper to add image part and log it for prompt
@@ -108,48 +109,67 @@ export const generatePersonaImage = async (
     }
   };
 
-  addRef('front', 'FRONT VIEW - PRIMARY LIKENESS');
-  addRef('side', 'SIDE PROFILE - NOSE/JAW STRUCTURE');
-  addRef('threeQuarter', '3/4 ANGLE - DEPTH');
-  addRef('expression', 'EXPRESSION REF - SMILE/TEETH');
-  addRef('side90', '90 DEGREE SIDE PROFILE - STRICT STRUCTURE');
+  const p = config.prompt.toLowerCase();
+  let specificIdentityInstruction = "";
+
+  // SCENARIO: SIDE PROFILE (90 Degree)
+  if (p.includes("side") || p.includes("profile") || p.includes("90 degree")) {
+      // CRITICAL: DUMP THE FRONT VIEW. It confuses the model.
+      addRef('side90', 'PRIMARY STRUCTURE - 90 DEGREE PROFILE');
+      addRef('side', 'SECONDARY STRUCTURE - SIDE PROFILE');
+      specificIdentityInstruction = "IGNORE FRONT VIEW. Copy the nose slope and jawline EXACTLY from the Side Profile reference.";
+
+  // SCENARIO: BACK VIEW (No Face)
+  } else if (p.includes("back") || p.includes("behind") || p.includes("walking away")) {
+      // CRITICAL: SEND NO FACES. Only Body/Hair.
+      addRef('threeQuarter', 'HAIR/BODY REF');
+      addRef('side', 'HAIR REF'); 
+      specificIdentityInstruction = "DO NOT DRAW A FACE. Subject is facing away. Focus on hair volume and shoulder structure.";
+
+  // SCENARIO: EXPRESSION (Smile/Laugh)
+  } else if (p.includes("smile") || p.includes("laugh") || p.includes("happy") || p.includes("joy")) {
+      addRef('expression', 'EXPRESSION REFERENCE (TEETH/EYES)');
+      addRef('front', 'IDENTITY BASE'); // We need front view for likeness, but expression guides the mouth.
+      specificIdentityInstruction = "Morph the face from 'Image 1' into the smile seen in 'Expression Ref'.";
+
+  // SCENARIO: STANDARD PORTRAIT (Default)
+  } else {
+      // Use Front view as bible.
+      addRef('front', 'PRIMARY IDENTITY BIBLE');
+      addRef('threeQuarter', 'DEPTH REF');
+      specificIdentityInstruction = "Create a biological clone of 'Reference Image 1'.";
+  }
 
   const refContextBlock = imageMappingInfo.join('\n');
-
-  // --- VOLTRAN IDENTITY LOGIC ---
-  // Analyze prompt to determine which reference is King
-  let specificIdentityInstruction = "Use 'FRONT VIEW' as the primary facial reference, but map it onto the 3D structure implied by the Sketch.";
-  
-  const p = config.prompt.toLowerCase();
-  if (p.includes("side") || p.includes("profile") || p.includes("90 degree")) {
-      specificIdentityInstruction = "CRITICAL: For this Side View, disregard the Front View reference. STRICTLY COPY the nose shape and jawline from the '90 DEGREE SIDE PROFILE' or 'SIDE PROFILE' reference images.";
-  } else if (p.includes("smile") || p.includes("laugh") || p.includes("happy") || p.includes("joy")) {
-      specificIdentityInstruction = "CRITICAL: Use the 'EXPRESSION REF' image as the primary reference for teeth, mouth shape, and eye crinkles.";
-  } else if (p.includes("back") || p.includes("behind")) {
-      specificIdentityInstruction = "CRITICAL: Focus on the hair volume and shoulder structure. Do NOT force a face to be visible if the sketch shows a back view.";
-  }
 
   // --- REBALANCED PROMPT ENGINEERING ---
   let finalPrompt = "";
 
   const coreInstruction = `
     [TASK]
-    Create a highly photorealistic image of a specific character based on MULTIPLE reference inputs.
+    This is NOT a creative generation task. This is a TEXTURE MAPPING task.
+    You are given a Skeleton (Sketch Image 1) and a Skin Texture (Reference Images).
     
+    [RULE 1: POSE OBEDIENCE]
+    - IGNORE the pose in the Reference Photos. They are just for skin data.
+    - You MUST align the body and head angle to match ${sketchIndex} exactly.
+    - If the Sketch shows a back view, draw a back view, even if the Reference is a front view.
+
+    [RULE 2: BIOLOGICAL CLONE]
+    - The subject is "Lola kizil woman".
+    - You must preserve: Eye distance, nose shape, lip volume, freckle pattern.
+    - Do NOT "beautify" or "average" the face. Keep the specific quirks of the reference.
+    - If the output does not look like the twin sister of the reference, it is a FAILURE.
+
     [INPUT CONTEXT]
     Use the following image map to understand the character's 3D geometry:
     ${refContextBlock}
-    ${sketchReference ? `- Use ${sketchIndex} ONLY for the pose composition/layout.` : ''}
-
-    [IDENTITY SYNTHESIS (CRITICAL)]
-    - You must construct a mental 3D model of this person by combining ALL the reference images provided.
-    - ${specificIdentityInstruction}
-    - Maintain consistent skin texture, moles, and eye distance across all angles.
-    - DO NOT blend features with generic faces. It must look exactly like the reference person.
+    
+    [IDENTITY LOGIC]
+    ${specificIdentityInstruction}
 
     [BODY & OUTFIT]
     - IGNORE the clothes in the reference images. Use the outfit described below.
-    - Use the pose from ${sketchIndex} (if provided) or the text description.
   `;
 
   if (config.isRawMode) {
@@ -167,7 +187,7 @@ export const generatePersonaImage = async (
     - IMPERFECTIONS: Allow slight asymmetry, flyaway hairs, and natural skin texture variation.
 
     [NEGATIVE PROMPT]
-    cartoon, drawing, illustration, 3d render, plastic skin, airbrushed, neon, fantasy, sci-fi, cyberpunk, makeup, text, watermark, border, frame, split screen, multiple views, collage, deformed hands.
+    ${GLOBAL_NEGATIVE_PROMPT}
     `;
   } else {
     finalPrompt = `
