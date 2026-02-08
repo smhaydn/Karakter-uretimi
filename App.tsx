@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wand2, 
@@ -6,7 +7,6 @@ import {
   RefreshCw, 
   Trash2, 
   Layers,
-  Info,
   FileText,
   ListTodo,
   Sparkles,
@@ -14,13 +14,10 @@ import {
   Aperture,
   Package,
   Eye,
-  Repeat,
   Play,
   Square,
   Zap,
-  Gavel,
-  PencilRuler,
-  Anchor
+  LayoutGrid
 } from 'lucide-react';
 
 import JSZip from 'jszip';
@@ -34,7 +31,7 @@ import {
     generateSketch, 
     evaluateImageQuality 
 } from './services/geminiService';
-import { GeneratedImage, AspectRatio, ImageSize, AnchorImage } from './types';
+import { GeneratedImage, AspectRatio, ImageSize, AnchorImage, ReferenceMap, ReferenceSlotId } from './types';
 import { DATASET_PLAN } from './utils/datasetPlan';
 
 // Utility for creating unique IDs
@@ -43,10 +40,27 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 type Mode = 'FREE' | 'DATASET';
 type AutoPilotPhase = 'IDLE' | 'SKETCHING' | 'GENERATING' | 'JUDGING' | 'CAPTIONING' | 'WAITING';
 
+// Define the 5 reference slots
+const REFERENCE_SLOTS: { id: ReferenceSlotId; label: string; subLabel: string; required: boolean }[] = [
+  { id: 'front', label: '1. Front View', subLabel: 'Passport style (Essential)', required: true },
+  { id: 'side', label: '2. Side Profile', subLabel: 'General Profile', required: false },
+  { id: 'threeQuarter', label: '3. 3/4 Angle', subLabel: 'Depth reference', required: false },
+  { id: 'expression', label: '4. Expression', subLabel: 'Smiling/Laughing', required: false },
+  { id: 'side90', label: '5. 90° Side View', subLabel: 'Strict 90° Angle', required: false },
+];
+
 function App() {
   // State
   const [apiKeyReady, setApiKeyReady] = useState(false);
-  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  
+  // New Reference State: Map of ID -> Base64
+  const [referenceImages, setReferenceImages] = useState<ReferenceMap>({
+    front: null,
+    side: null,
+    threeQuarter: null,
+    expression: null,
+    side90: null
+  });
   
   // Mode State
   const [mode, setMode] = useState<Mode>('FREE');
@@ -60,14 +74,13 @@ function App() {
 
   // Common State
   const [isGenerating, setIsGenerating] = useState(false);
-  const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set());
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   
   // Factory Mode State
   const [isAutoPilot, setIsAutoPilot] = useState(false);
   const [pilotPhase, setPilotPhase] = useState<AutoPilotPhase>('IDLE');
   const [retryCount, setRetryCount] = useState(0);
-  const [anchorImages, setAnchorImages] = useState<AnchorImage[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentSketch, setCurrentSketch] = useState<string | null>(null);
   
   const autoPilotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,10 +90,19 @@ function App() {
   const [imageSize, setImageSize] = useState<ImageSize>(ImageSize.ONE_K);
   const [isRawMode, setIsRawMode] = useState(true);
 
+  // Helper: Check if we have the minimum required reference
+  const hasRequiredReference = !!referenceImages.front;
+
+  const handleImageUpdate = (id: string, base64: string | null) => {
+    setReferenceImages(prev => ({
+        ...prev,
+        [id]: base64
+    }));
+  };
+
   // --- Auto-Pilot Loop ---
-  // We use a function instead of useEffect for the complex state machine to avoid stale closures
   const runAutoPilotStep = async () => {
-     if (!isAutoPilot || !referenceImage) return;
+     if (!isAutoPilot || !hasRequiredReference) return;
 
      // Safety Check
      if (datasetIndex >= DATASET_PLAN.length) {
@@ -97,7 +119,6 @@ function App() {
          console.log(`[AutoPilot] Phase 1: Sketching pose for ${item.shot}`);
          
          const sketchPrompt = `${item.shot}, ${item.expression} expression, ${item.outfit}, body pose: ${item.description}`;
-         // Generate sketch (Pass 1)
          const sketchUrl = await generateSketch(sketchPrompt, aspectRatio);
          setCurrentSketch(sketchUrl);
 
@@ -107,15 +128,13 @@ function App() {
          
          const structuredPrompt = `${item.shot} of a woman, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting. ${item.description}`;
          
-         // Generate Image (Pass 2)
-         // NOTE: Removed anchorImages from the call to ensure diversity and stick to original identity
          const images = await generatePersonaImage({
             prompt: structuredPrompt,
-            referenceImage,
+            referenceImages: referenceImages, // Pass the map
             aspectRatio,
             imageSize,
             isRawMode
-         }, sketchUrl, []); // Passing empty array for anchors
+         }, sketchUrl, []); 
          
          const generatedUrl = images[0];
 
@@ -126,30 +145,22 @@ function App() {
          const score = await evaluateImageQuality(generatedUrl);
          console.log(`[AutoPilot] Judge Score: ${score}/10`);
 
-         // Quality Gate (Score < 7)
-         // If bad score AND we haven't retried 3 times yet
+         // Quality Gate (Score < 6)
          if (score < 6 && retryCount < 2) {
              console.warn(`[AutoPilot] Low quality (${score}). Retrying (${retryCount + 1}/3)...`);
              setRetryCount(prev => prev + 1);
-             // Recursive call to retry (start from generation, keep sketch)
-             // Short delay before retry
              setTimeout(() => runAutoPilotStep(), 2000);
              return;
          }
 
-         // If good score OR max retries reached -> Accept
-         setRetryCount(0); // Reset for next item
-         setCurrentSketch(null); // Clear sketch
+         setRetryCount(0); 
+         setCurrentSketch(null);
          
          // --- PHASE 4: CAPTIONING & SAVING ---
          setPilotPhase('CAPTIONING');
          
-         // Add to UI temporarily while captioning
          const tempId = generateId();
          
-         // NOTE: We do NOT update anchorImages here anymore.
-         // This prevents the "Model Collapse" where images start looking like each other.
-
          const newImage: GeneratedImage = {
             id: tempId,
             url: generatedUrl,
@@ -160,23 +171,20 @@ function App() {
             datasetId: item.id,
             isAnalyzing: true,
             qualityScore: score,
-            isAnchor: false // Disabled anchor marking
+            isAnchor: false
          };
 
          setGeneratedImages(prev => [newImage, ...prev]);
 
-         // Generate Caption
          const initialCaption = `${triggerWord}, ${item.shot} of a woman, ${item.description}, ${item.expression}, ${item.outfit}, ${item.lighting}`;
          const visionCaption = await generateVisionCaption(generatedUrl, triggerWord);
          
-         // Update UI with final caption
          setGeneratedImages(prev => prev.map(img => 
             img.id === tempId 
                 ? { ...img, caption: visionCaption || initialCaption, isAnalyzing: false } 
                 : img
          ));
 
-         // Increment Index
          setDatasetIndex(prev => prev + 1);
 
          // --- PHASE 5: WAITING (Rate Limit) ---
@@ -184,19 +192,17 @@ function App() {
          console.log(`[AutoPilot] Step Complete. Waiting 4s...`);
          
          autoPilotTimerRef.current = setTimeout(() => {
-             runAutoPilotStep(); // Loop
+             runAutoPilotStep(); 
          }, 4000);
 
      } catch (error) {
          console.error("AutoPilot Error:", error);
-         // On error, stop or retry? Let's stop to be safe.
          setIsAutoPilot(false);
          setPilotPhase('IDLE');
          alert("Auto-Pilot stopped due to an error.");
      }
   };
 
-  // Effect to kickstart AutoPilot only when toggled ON
   useEffect(() => {
       if (isAutoPilot && pilotPhase === 'IDLE') {
           runAutoPilotStep();
@@ -209,8 +215,8 @@ function App() {
 
   // --- Handlers ---
   const handleFreeGenerate = async () => {
-    if (!referenceImage) {
-      alert("Please upload a reference image of your model first.");
+    if (!hasRequiredReference) {
+      alert("Please upload at least the Front View (Slot 1) reference.");
       return;
     }
     if (!prompt.trim()) {
@@ -220,10 +226,9 @@ function App() {
     
     setIsGenerating(true);
     try {
-        // No anchors for free generate either
         const images = await generatePersonaImage({
             prompt,
-            referenceImage,
+            referenceImages: referenceImages,
             aspectRatio,
             imageSize,
             isRawMode
@@ -253,53 +258,14 @@ function App() {
     }
   };
 
-  const handleDatasetGenerateManual = async () => {
-      // Manual trigger for a single dataset item without the factory loop
-      if (!referenceImage || datasetIndex >= DATASET_PLAN.length) return;
-      setIsGenerating(true);
-      const item = DATASET_PLAN[datasetIndex];
-      const promptText = `${item.shot} of a woman, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting. ${item.description}`;
-      
-      try {
-          const images = await generatePersonaImage({
-              prompt: promptText,
-              referenceImage,
-              aspectRatio,
-              imageSize,
-              isRawMode
-          }, null, []); // No anchors
-          const url = images[0];
-          const tempId = generateId();
-          setGeneratedImages(prev => [{
-              id: tempId,
-              url,
-              prompt: promptText,
-              caption: "Analyzing...",
-              timestamp: Date.now(),
-              isDataset: true,
-              datasetId: item.id,
-              isAnalyzing: true
-          }, ...prev]);
-          
-           generateVisionCaption(url, triggerWord).then(cap => {
-                setGeneratedImages(prev => prev.map(i => i.id === tempId ? {...i, caption: cap, isAnalyzing: false} : i));
-            });
-           setDatasetIndex(prev => prev + 1);
-      } catch (e: any) {
-          alert(e.message);
-      } finally {
-          setIsGenerating(false);
-      }
-  };
-
   const toggleAutoPilot = () => {
     if (isAutoPilot) {
         setIsAutoPilot(false);
         setPilotPhase('IDLE');
         if (autoPilotTimerRef.current) clearTimeout(autoPilotTimerRef.current);
     } else {
-        if (!referenceImage) {
-            alert("Please upload a reference image first.");
+        if (!hasRequiredReference) {
+            alert("Please upload at least the Front View reference.");
             return;
         }
         if (datasetIndex >= DATASET_PLAN.length) {
@@ -307,7 +273,6 @@ function App() {
             return;
         }
         setIsAutoPilot(true);
-        // Effect will pick this up
     }
   };
 
@@ -352,10 +317,8 @@ function App() {
 
   const handleDelete = (id: string) => {
     setGeneratedImages(prev => prev.filter(img => img.id !== id));
-    setAnchorImages(prev => prev.filter(img => img.id !== id)); // Remove from anchors if deleted
   };
 
-  // Dataset Progress
   const currentPlanItem = datasetIndex < DATASET_PLAN.length ? DATASET_PLAN[datasetIndex] : null;
   const progressPercentage = (datasetIndex / DATASET_PLAN.length) * 100;
 
@@ -373,7 +336,6 @@ function App() {
               HyperReal <span className="text-neutral-500 font-normal">Factory Mode</span>
             </h1>
           </div>
-          
           <div className="flex items-center space-x-4">
              <ApiKeyManager onReady={() => setApiKeyReady(true)} />
           </div>
@@ -383,7 +345,6 @@ function App() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         {!apiKeyReady ? (
           <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6">
-             {/* API Key Modal Content */}
              <div className="p-6 bg-neutral-900/50 rounded-3xl border border-neutral-800 max-w-lg">
                 <div className="w-16 h-16 bg-neutral-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <Settings2 size={32} className="text-neutral-400" />
@@ -403,23 +364,41 @@ function App() {
             {/* Left Sidebar: Controls */}
             <div className="lg:col-span-4 space-y-6">
               
-              {/* Reference Section */}
-              <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 space-y-4">
+              {/* Reference Grid Section */}
+              <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-4 space-y-4">
                 <div className="flex items-center justify-between">
                     <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                         <span className="w-1 h-4 bg-violet-500 rounded-full"></span>
-                        Reference Model
+                        Character Sheet (Multi-View)
                     </h2>
-                    <span className="text-xs px-2 py-1 bg-neutral-800 rounded text-neutral-400">Required</span>
+                    <div className="flex items-center gap-1.5 text-[10px] text-neutral-400 bg-neutral-800 px-2 py-1 rounded">
+                        <LayoutGrid size={10} />
+                        <span>5 Slots</span>
+                    </div>
                 </div>
-                <ImageUploader 
-                  selectedImage={referenceImage}
-                  onImageSelected={setReferenceImage}
-                />
+                
+                {/* 5-Slot Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                    {REFERENCE_SLOTS.map((slot, index) => (
+                        <div key={slot.id} className={index === 4 ? "col-span-2" : ""}>
+                            <ImageUploader 
+                                id={slot.id}
+                                label={slot.label}
+                                subLabel={slot.subLabel}
+                                isRequired={slot.required}
+                                selectedImage={referenceImages[slot.id]}
+                                onImageSelected={handleImageUpdate}
+                            />
+                        </div>
+                    ))}
+                </div>
+                
+                {!hasRequiredReference && (
+                    <div className="text-xs text-red-400 bg-red-400/10 p-2 rounded text-center">
+                        Upload the "Front View" to enable generation.
+                    </div>
+                )}
               </div>
-
-              {/* Anchor Images (Identity Buffer) */}
-              {/* Removed Visual for Anchors since we disabled the logic, keeping it clean */}
 
               {/* Mode Selection */}
               <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-2 flex">
@@ -443,7 +422,6 @@ function App() {
 
               {/* Shared Settings */}
               <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 space-y-6">
-                 {/* ... Existing settings code ... */}
                   <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                     <span className="w-1 h-4 bg-fuchsia-500 rounded-full"></span>
                     Tech Specs
@@ -520,7 +498,7 @@ function App() {
                         <div className="absolute bottom-4 right-4">
                             <button
                                 onClick={handleFreeGenerate}
-                                disabled={isGenerating || !referenceImage || !prompt.trim()}
+                                disabled={isGenerating || !hasRequiredReference || !prompt.trim()}
                                 className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all ${isGenerating ? 'bg-neutral-800 cursor-not-allowed opacity-80' : 'bg-white text-black hover:scale-105'}`}
                             >
                                 {isGenerating ? <RefreshCw className="animate-spin" size={18} /> : <Wand2 size={18} />}
@@ -604,7 +582,7 @@ function App() {
                             </div>
                         )}
 
-                        {/* Current Item Card (Hidden when running to save space or visual noise? No, keep it) */}
+                        {/* Current Item Card */}
                         {!isAutoPilot && currentPlanItem && (
                             <div className="bg-black/40 border border-neutral-700/50 rounded-xl p-4 relative z-10">
                                 <div className="text-xs text-neutral-500 uppercase tracking-widest mb-3">Up Next</div>
@@ -616,7 +594,7 @@ function App() {
                         <div className="mt-6 flex items-center justify-end gap-4 relative z-10">
                             <button
                                 onClick={toggleAutoPilot}
-                                disabled={datasetIndex >= DATASET_PLAN.length || !referenceImage}
+                                disabled={datasetIndex >= DATASET_PLAN.length || !hasRequiredReference}
                                 className={`
                                     flex items-center space-x-2 px-5 py-3 rounded-xl font-semibold transition-all border w-full justify-center
                                     ${isAutoPilot 

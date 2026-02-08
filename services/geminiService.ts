@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { GenerationConfig, AspectRatio, ImageSize, AnchorImage } from "../types";
 
@@ -70,10 +71,11 @@ export const generatePersonaImage = async (
 
   const ai = new GoogleGenAI({ apiKey });
   const parts: any[] = [];
+  let imageIndexCounter = 1;
+  const imageMappingInfo: string[] = [];
 
-  // --- INPUTS ORDER MATTERS ---
-  
-  // 1. POSE REFERENCE (The Sketch) - Priority 1 for Composition
+  // --- 1. SKETCH REFERENCE (Structure) ---
+  let sketchIndex = "None";
   if (sketchReference) {
     const base64Sketch = sketchReference.split(',')[1] || sketchReference;
     parts.push({
@@ -82,47 +84,55 @@ export const generatePersonaImage = async (
         data: base64Sketch
       }
     });
+    sketchIndex = `Image ${imageIndexCounter}`;
+    imageIndexCounter++;
   }
 
-  // 2. PRIMARY IDENTITY REFERENCE (The User's Upload) - Priority 1 for Face
-  if (config.referenceImage) {
-    const base64Data = config.referenceImage.split(',')[1] || config.referenceImage;
-    parts.push({
-      inlineData: {
-        mimeType: 'image/png',
-        data: base64Data
-      }
-    });
-  }
+  // --- 2. MULTI-VIEW CHARACTER REFERENCES (Identity) ---
+  // Iterate through slots and add available images
+  const refMap = config.referenceImages;
+  
+  // Helper to add image part and log it for prompt
+  const addRef = (slot: string, desc: string) => {
+    const imgData = refMap[slot];
+    if (imgData) {
+        const base64 = imgData.split(',')[1] || imgData;
+        parts.push({ inlineData: { mimeType: 'image/png', data: base64 } });
+        imageMappingInfo.push(`- Image ${imageIndexCounter} (${desc})`);
+        imageIndexCounter++;
+    }
+  };
 
-  // NOTE: Anchor references are deliberately IGNORED to prevent model collapse/sameness.
-  // We want to force the model to look at the ORIGINAL reference every time.
+  addRef('front', 'FRONT VIEW - PRIMARY LIKENESS');
+  addRef('side', 'SIDE PROFILE - NOSE/JAW STRUCTURE');
+  addRef('threeQuarter', '3/4 ANGLE - DEPTH');
+  addRef('expression', 'EXPRESSION REF - SMILE/TEETH');
+  addRef('side90', '90 DEGREE SIDE PROFILE - STRICT STRUCTURE');
+
+  const refContextBlock = imageMappingInfo.join('\n');
 
   // --- REBALANCED PROMPT ENGINEERING ---
   let finalPrompt = "";
-  
-  const sketchIndex = sketchReference ? "Image 1" : "None";
-  const identityIndex = sketchReference ? "Image 2" : "Image 1";
 
   const coreInstruction = `
     [TASK]
-    Perform a high-fidelity "CONTEXT SWAP". Take the Head and Face from ${identityIndex}, and place it into the Body and Environment described in the prompt below.
+    Create a highly photorealistic image of a specific character based on MULTIPLE reference inputs.
+    
+    [INPUT CONTEXT]
+    Use the following image map to understand the character's 3D geometry:
+    ${refContextBlock}
+    ${sketchReference ? `- Use ${sketchIndex} ONLY for the pose composition/layout.` : ''}
 
-    [FACE & IDENTITY (PRIORITY: HIGH)]
-    - You MUST use the face from ${identityIndex}.
-    - Copy: Eye shape, color, nose, mouth, ears, and jawline exactly.
-    - Keep skin texture details (pores, moles) to ensure it looks like the SAME person.
-    - Do NOT make the face look "generic". It must match the reference unique features.
+    [IDENTITY SYNTHESIS (CRITICAL)]
+    - You must construct a mental 3D model of this person by combining ALL the reference images provided.
+    - If generating a side profile, strictly use the "SIDE PROFILE" reference for the nose shape and jawline.
+    - If generating a smile, refer to the "EXPRESSION REF" (if provided) for teeth and eye crinkles.
+    - Maintain consistent skin texture, moles, and eye distance across all angles.
+    - DO NOT blend features with generic faces. It must look exactly like the reference person.
 
-    [BODY & OUTFIT (PRIORITY: HIGH)]
-    - IGNORE the body pose and outfit in ${identityIndex}. 
-    - Instead, use the pose from ${sketchIndex} (if provided) and the outfit described below.
-    - If the reference is wearing a white tank top, but the prompt says "Leather Jacket", you MUST draw a Leather Jacket. 
-    - Treat ${identityIndex} as a "Headshot Reference" only.
-
-    [HAIR LOGIC]
-    - Keep the hair color and general length from ${identityIndex}.
-    - You MAY adjust the hair styling (messy, windblown, tied back) to match the scene description.
+    [BODY & OUTFIT]
+    - IGNORE the clothes in the reference images. Use the outfit described below.
+    - Use the pose from ${sketchIndex} (if provided) or the text description.
   `;
 
   if (config.isRawMode) {

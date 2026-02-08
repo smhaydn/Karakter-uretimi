@@ -1,3 +1,4 @@
+
 export interface GeneratedImage {
   id: string;
   url: string;
@@ -17,6 +18,12 @@ export interface AnchorImage {
   score: number;
 }
 
+export type ReferenceSlotId = 'front' | 'side' | 'threeQuarter' | 'expression' | 'side90';
+
+export interface ReferenceMap {
+  [key: string]: string | null; // slotId -> base64
+}
+
 export enum AspectRatio {
   SQUARE = "1:1",
   PORTRAIT = "3:4",
@@ -33,7 +40,7 @@ export enum ImageSize {
 
 export interface GenerationConfig {
   prompt: string;
-  referenceImage: string | null; // Base64 string
+  referenceImages: ReferenceMap; // Changed from single string to map
   aspectRatio: AspectRatio;
   imageSize: ImageSize;
   isRawMode?: boolean; // New flag for analog style
