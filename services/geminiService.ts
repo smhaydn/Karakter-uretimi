@@ -14,9 +14,9 @@ async function ensureApiKey(): Promise<string | undefined> {
   return process.env.API_KEY;
 }
 
-// --- UTILITY: SMART CROP (THE POSE KILLER) ---
-// Cuts out shoulders, neck, and background context, leaving only identity features.
+// --- UTILITY: SMART CROP ---
 const cropToFaceFeature = async (base64Str: string): Promise<string> => {
+    if (!base64Str) return "";
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -52,9 +52,7 @@ const cropToFaceFeature = async (base64Str: string): Promise<string> => {
     });
 };
 
-// --- UTILITY: REFERENCE SELECTOR (THE DIRECTOR) ---
-// Decides which reference slots to actually send to the AI based on the requested pose.
-// Now returns both the selected references AND a specific instruction for the model.
+// --- UTILITY: REFERENCE SELECTOR ---
 const selectReferencesForContext = (
     refMap: ReferenceMap, 
     prompt: string
@@ -65,59 +63,38 @@ const selectReferencesForContext = (
     let specificInstruction = "";
 
     const addRef = (slotId: string, method: 'crop' | 'full') => {
-        if (refMap[slotId]) {
-            selectedRefs.push({ slot: slotId, data: refMap[slotId]!, method });
+        const data = refMap[slotId];
+        if (data && typeof data === 'string') {
+            selectedRefs.push({ slot: slotId, data: data, method });
         }
     };
 
     console.log(`[Smart Gating] Analyzing Prompt: "${prompt.substring(0, 30)}..."`);
 
-    // SCENARIO 1: SIDE PROFILE (90 Degree)
     if (p.includes("side") || p.includes("profile") || p.includes("90")) {
-        console.log(">> MODE: SIDE PROFILE (Removing Front View)");
-        // CRITICAL: DUMP THE FRONT VIEW. It confuses the model.
-        addRef('side90', 'full'); // Primary
-        addRef('side', 'full');   // Fallback
-        
+        addRef('side90', 'full'); 
+        addRef('side', 'full');   
         specificInstruction = "IGNORE FRONT VIEW. Copy the nose slope and jawline EXACTLY from the Side Profile reference.";
-    } 
-    
-    // SCENARIO 2: BACK VIEW (No Face)
-    else if (p.includes("back") || p.includes("behind")) {
-        console.log(">> MODE: BACK VIEW (Removing Faces)");
-        // CRITICAL: SEND NO FACES. Only Body/Hair.
-        addRef('threeQuarter', 'full'); // Hair/Body Ref
-        addRef('side', 'full');         // Hair Ref
-        
+    } else if (p.includes("back") || p.includes("behind")) {
+        addRef('threeQuarter', 'full'); 
+        addRef('side', 'full');         
         specificInstruction = "DO NOT DRAW A FACE. Subject is facing away. Focus on hair volume and shoulder structure.";
-    }
-
-    // SCENARIO 3: EXPRESSION (Smile/Laugh)
-    else if (p.includes("smile") || p.includes("laugh") || p.includes("happy")) {
-        console.log(">> MODE: EXPRESSION");
-        addRef('expression', 'crop'); // The guide for the mouth
-        addRef('front', 'crop');      // The guide for identity (cropped heavily)
-        
+    } else if (p.includes("smile") || p.includes("laugh") || p.includes("happy")) {
+        addRef('expression', 'crop'); 
+        addRef('front', 'crop');      
         specificInstruction = "Morph the face from 'Image 1' into the smile seen in 'Expression Ref'.";
-    }
-
-    // SCENARIO 4: STANDARD PORTRAIT (Default)
-    else {
-        console.log(">> MODE: STANDARD PORTRAIT");
-        addRef('front', 'crop');        // Primary Identity Bible
-        addRef('threeQuarter', 'full'); // Depth Ref
-        
+    } else {
+        addRef('front', 'crop');        
+        addRef('threeQuarter', 'full'); 
         specificInstruction = "Create a biological clone of 'Reference Image 1'.";
     }
 
-    // Failsafe: If nothing selected, force Front
     if (selectedRefs.length === 0 && refMap['front']) {
          addRef('front', 'crop');
     }
 
     return { refs: selectedRefs, instruction: specificInstruction };
 }
-
 
 // --- 1. AI SKETCH ARTIST ---
 export const generateSketch = async (
@@ -130,25 +107,14 @@ export const generateSketch = async (
 
   const prompt = `
     Create a minimalistic, black and white LINE DRAWING (Sketch) for: "${poseDescription}".
-    
-    CRITICAL RULES:
-    1. NO FACE DETAILS. The face must be an empty oval.
-    2. SOLID BLACK LINES on WHITE background.
-    3. If description says "Front View", draw a symmetric body facing forward.
-    4. If description says "Side View", draw a profile body facing right.
-    5. High contrast. Stick-figure anatomy.
+    CRITICAL RULES: NO FACE DETAILS. The face must be an empty oval. SOLID BLACK LINES on WHITE background.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview', 
       contents: { parts: [{ text: prompt }] },
-      config: {
-        imageConfig: {
-          aspectRatio: aspectRatio,
-          imageSize: "1K"
-        }
-      }
+      config: { imageConfig: { aspectRatio: aspectRatio, imageSize: "1K" } }
     });
 
     if (response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
@@ -173,68 +139,39 @@ export const generatePersonaImage = async (
   const ai = new GoogleGenAI({ apiKey });
   const parts: any[] = [];
   
-  // 1. SKETCH (The Skeleton) - Safe Check
-  if (sketchReference && sketchReference.includes(',')) {
+  if (sketchReference && typeof sketchReference === 'string' && sketchReference.includes(',')) {
     const base64Sketch = sketchReference.split(',')[1];
-    parts.push({
-      inlineData: { mimeType: 'image/png', data: base64Sketch }
-    });
-  } else if (sketchReference) {
-    // If raw base64 without prefix
-    parts.push({
-      inlineData: { mimeType: 'image/png', data: sketchReference }
-    });
+    parts.push({ inlineData: { mimeType: 'image/png', data: base64Sketch } });
+  } else if (sketchReference && typeof sketchReference === 'string') {
+    parts.push({ inlineData: { mimeType: 'image/png', data: sketchReference } });
   }
 
-  // 2. SMART REFERENCE SELECTION (The Filter)
   const { refs: activeReferences, instruction: specificInstruction } = selectReferencesForContext(config.referenceImages, config.prompt);
-  console.log(`[GeminiService] Using ${activeReferences.length} filtered references.`);
 
   for (const ref of activeReferences) {
-      if (!ref.data) continue; // Skip empty/null refs
+      if (!ref.data) continue; 
 
       let finalData = ref.data;
       if (ref.method === 'crop') {
           const cropped = await cropToFaceFeature(ref.data);
-          finalData = cropped.includes(',') ? cropped.split(',')[1] : cropped;
+          finalData = (cropped && cropped.includes(',')) ? cropped.split(',')[1] : cropped;
       } else {
-          finalData = ref.data.includes(',') ? ref.data.split(',')[1] : ref.data;
+          finalData = (ref.data && ref.data.includes(',')) ? ref.data.split(',')[1] : ref.data;
       }
       
-      parts.push({
-          inlineData: { mimeType: 'image/png', data: finalData }
-      });
+      if (finalData) {
+        parts.push({ inlineData: { mimeType: 'image/png', data: finalData } });
+      }
   }
 
-  // 3. PROMPT ENGINEERING (Identity Lock)
   const isRaw = config.isRawMode;
-  
   const finalPrompt = `
-    [TASK]
-    This is NOT a creative generation task. This is a TEXTURE MAPPING task.
-    You are given a Skeleton (Sketch Image 1) and a Skin Texture (Reference Images).
-    
-    [RULE 1: POSE OBEDIENCE]
-    - IGNORE the pose in the Reference Photos. They are just for skin data.
-    - You MUST align the body and head angle to match SKETCH IMAGE 1 exactly.
-    - If the Sketch shows a back view, draw a back view, even if the Reference is a front view.
-
-    [RULE 2: BIOLOGICAL CLONE]
-    - The subject is "Lola" (Redhead, freckles, blue-green eyes).
-    - You must preserve: Eye distance, nose shape, lip volume, freckle pattern.
-    - Do NOT "beautify" or "average" the face. Keep the specific quirks of the reference.
-
-    [IDENTITY LOGIC]
-    ${specificInstruction}
-
-    [SCENE & LIGHTING]
-    ${config.prompt}
-
-    [STYLE]
-    ${isRaw ? "Analog photography, Kodak Portra 400, film grain, natural skin texture." : "High-fidelity digital photography, sharp focus."}
-    
-    [NEGATIVE PROMPT]
-    ${GLOBAL_NEGATIVE_PROMPT}
+    [TASK] TEXTURE MAPPING task. Skeleton (Sketch) + Skin Texture (Refs).
+    [RULE] Align body/head angle to SKETCH. Preserve Eye distance, nose shape, freckles from Refs.
+    [INSTRUCTION] ${specificInstruction}
+    [SCENE] ${config.prompt}
+    [STYLE] ${isRaw ? "Analog photography, Kodak Portra 400, film grain." : "High-fidelity digital photography."}
+    [NEGATIVE] ${GLOBAL_NEGATIVE_PROMPT}
   `;
 
   parts.push({ text: finalPrompt });
@@ -243,12 +180,7 @@ export const generatePersonaImage = async (
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: { parts: parts },
-      config: {
-        imageConfig: {
-          aspectRatio: config.aspectRatio,
-          imageSize: config.imageSize
-        }
-      }
+      config: { imageConfig: { aspectRatio: config.aspectRatio, imageSize: config.imageSize } }
     });
 
     const generatedImages: string[] = [];
@@ -260,31 +192,22 @@ export const generatePersonaImage = async (
       }
     }
     return generatedImages;
-
   } catch (error: any) {
-    console.error("Gemini Generation Error:", error);
-    if (error.message && error.message.includes("Requested entity was not found")) {
-        throw new Error("API_KEY_INVALID"); 
-    }
+    if (error.message && error.message.includes("Requested entity was not found")) throw new Error("API_KEY_INVALID"); 
     throw error;
   }
 };
 
 // --- 3. AI CURATOR ---
-export const evaluateImageQuality = async (
-    imageBase64: string
-): Promise<number> => {
-    // Safety check: ensure valid string input
+export const evaluateImageQuality = async (imageBase64: string): Promise<number> => {
     if (!imageBase64 || typeof imageBase64 !== 'string') return 0;
     
     const apiKey = await ensureApiKey();
     if (!apiKey) return 0;
     const ai = new GoogleGenAI({ apiKey });
     
-    // Safe split to get base64 data
     const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-
-    const prompt = `Rate (1-10) for LoRA dataset: Anatomical correctness, texture realism, adherence to prompt. Return ONLY integer.`;
+    const prompt = `Rate (1-10) for LoRA dataset: Anatomical correctness, texture realism. Return ONLY integer.`;
 
     try {
         const response = await ai.models.generateContent({
@@ -298,21 +221,15 @@ export const evaluateImageQuality = async (
 }
 
 // --- 4. VISION CAPTIONING ---
-export const generateVisionCaption = async (
-  imageBase64: string,
-  triggerWord: string
-): Promise<string> => {
-  // Safety check: ensure valid string input
+export const generateVisionCaption = async (imageBase64: string, triggerWord: string): Promise<string> => {
   if (!imageBase64 || typeof imageBase64 !== 'string') return "";
   
   const apiKey = await ensureApiKey();
   if (!apiKey) return "";
   const ai = new GoogleGenAI({ apiKey });
   
-  // Safe split to get base64 data
   const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-  
-  const prompt = `Write a comma-separated caption for AI training. Start with: "${triggerWord}". Describe View, Subject, Pose, Outfit, Lighting.`;
+  const prompt = `Write a comma-separated caption. Start with: "${triggerWord}". Describe View, Subject, Pose, Outfit, Lighting.`;
 
   try {
     const response = await ai.models.generateContent({

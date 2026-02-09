@@ -159,6 +159,11 @@ function App() {
          // CHECKPOINT 2: Stop if user clicked stop during generation
          if (!isAutoPilotRef.current) return;
          
+         // Fix: Check if images exists and has content
+         if (!images || images.length === 0) {
+            throw new Error("No images generated");
+         }
+
          const generatedUrl = images[0];
 
          // --- PHASE 3: CURATION (The Judge) ---
@@ -196,13 +201,15 @@ function App() {
          setGeneratedImages(prev => [newImage, ...prev]);
 
          const initialCaption = `${triggerWord}, ${item.shot} of a woman, ${item.description}, ${item.expression}, ${item.outfit}, ${item.lighting}`;
-         const visionCaption = await generateVisionCaption(generatedUrl, triggerWord);
          
-         setGeneratedImages(prev => prev.map(img => 
-            img.id === tempId 
-                ? { ...img, caption: visionCaption || initialCaption, isAnalyzing: false } 
-                : img
-         ));
+         // Run captioning without awaiting to speed up UI
+         generateVisionCaption(generatedUrl, triggerWord).then(visionCaption => {
+             setGeneratedImages(prev => prev.map(img => 
+                img.id === tempId 
+                    ? { ...img, caption: visionCaption || initialCaption, isAnalyzing: false } 
+                    : img
+             ));
+         });
 
          // INCREMENT INDEX
          const nextIndex = currentIndex + 1;
@@ -227,7 +234,7 @@ function App() {
      } catch (error) {
          console.error("AutoPilot Error:", error);
          stopAutoPilot();
-         alert("Auto-Pilot stopped due to an error.");
+         alert("Auto-Pilot stopped due to an error. Check console.");
      }
   };
 
@@ -283,22 +290,24 @@ function App() {
             isRawMode
         }, null, []); 
 
-        const url = images[0];
-        const tempId = generateId();
-        
-        setGeneratedImages(prev => [{
-            id: tempId,
-            url,
-            prompt,
-            caption: prompt,
-            timestamp: Date.now(),
-            isDataset: false,
-            isAnalyzing: true
-        }, ...prev]);
+        if (images && images.length > 0) {
+            const url = images[0];
+            const tempId = generateId();
+            
+            setGeneratedImages(prev => [{
+                id: tempId,
+                url,
+                prompt,
+                caption: prompt,
+                timestamp: Date.now(),
+                isDataset: false,
+                isAnalyzing: true
+            }, ...prev]);
 
-        generateVisionCaption(url, triggerWord).then(cap => {
-            setGeneratedImages(prev => prev.map(i => i.id === tempId ? {...i, caption: cap || prompt, isAnalyzing: false} : i));
-        });
+            generateVisionCaption(url, triggerWord).then(cap => {
+                setGeneratedImages(prev => prev.map(i => i.id === tempId ? {...i, caption: cap || prompt, isAnalyzing: false} : i));
+            });
+        }
 
     } catch (e: any) {
         alert(e.message);
@@ -335,12 +344,20 @@ function App() {
     const imagesFolder = zip.folder("images");
     const captionsFolder = zip.folder("captions");
     if (!imagesFolder || !captionsFolder) return;
-    const getBase64Data = (url: string) => url.split(',')[1];
+    
+    // Fix: Safe base64 extraction
+    const getBase64Data = (url: string) => {
+        if (!url) return "";
+        return url.includes(',') ? url.split(',')[1] : url;
+    };
+
     generatedImages.forEach((img, index) => {
-        const padIndex = (generatedImages.length - index).toString().padStart(3, '0');
-        const fileName = `${triggerWord.split(' ')[0]}_${padIndex}`;
-        imagesFolder.file(`${fileName}.png`, getBase64Data(img.url), { base64: true });
-        captionsFolder.file(`${fileName}.txt`, img.caption);
+        if (img.url) {
+            const padIndex = (generatedImages.length - index).toString().padStart(3, '0');
+            const fileName = `${triggerWord.split(' ')[0] || 'img'}_${padIndex}`;
+            imagesFolder.file(`${fileName}.png`, getBase64Data(img.url), { base64: true });
+            captionsFolder.file(`${fileName}.txt`, img.caption);
+        }
     });
     const content = await zip.generateAsync({ type: "blob" });
     saveAs(content, "dataset_bundle.zip");

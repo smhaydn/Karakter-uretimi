@@ -3,9 +3,8 @@ import { DatasetItem } from "../types";
 
 export const GLOBAL_NEGATIVE_PROMPT = "same pose as reference, repetitive angle, stiff posture, mugshot, passport photo, looking at camera (unless specified), deformed hands, plastic skin, 3d render, cartoon, anime, illustration, bad anatomy, blur, low quality, grayscale, monochrome (unless specified), text, watermark, frozen face, duplicate expression";
 
-// --- ARCHIVED PLAN (Items 1-50) ---
-export const DATASET_PLAN_ARCHIVE_50: DatasetItem[] = [
-  // --- ANCHOR STRUCTURE (1-3) - CLINICAL GROUND TRUTH --- 
+// --- EXISTING ITEMS (1-45) ---
+const CORE_ITEMS: DatasetItem[] = [
   { 
     id: 1, 
     shot: "Technical Front View (Mugshot)", 
@@ -30,8 +29,6 @@ export const DATASET_PLAN_ARCHIVE_50: DatasetItem[] = [
     outfit: "White tank top", 
     description: "Anatomical Back View, Posture analysis, neutral stance, showing shoulders and hair volume, no face visible." 
   },
-
-  // --- LIFESTYLE & REALISM (4-45) --- 
   { id: 4, shot: "Coffee Shop Candid", expression: "Thoughtful", lighting: "Window Side Light", outfit: "Beige cashmere turtle neck sweater", description: "Sitting at a wooden table, steam rising from coffee, blurred background, f/1.8 aperture bokeh" },
   { id: 5, shot: "Street Crossing", expression: "Confident", lighting: "Overcast City Day", outfit: "Black leather biker jacket and white tee", description: "Walking across street, wind blowing hair, urban city background, depth of field" },
   { id: 6, shot: "Golden Hour Selfie", expression: "Soft Smile", lighting: "Direct Sunset Glow", outfit: "White linen summer dress", description: "Hand holding camera angle, sun flare hitting lens, warm orange tones, park background" },
@@ -73,103 +70,63 @@ export const DATASET_PLAN_ARCHIVE_50: DatasetItem[] = [
   { id: 42, shot: "Laundry Mat", expression: "Waiting", lighting: "Fluorescent Strip Light", outfit: "College sweatshirt", description: "Sitting on washing machine, rows of machines, retro laundromat vibe" },
   { id: 43, shot: "Tennis Court Break", expression: "Sweaty", lighting: "High Noon Sun", outfit: "White tennis skirt", description: "Drinking water, red face from heat, green court background" },
   { id: 44, shot: "Boat Ride", expression: "Windy", lighting: "Open Water Sun", outfit: "Nautical stripes shirt", description: "Wind messing up hair, blue water background, holiday vibe" },
-  { id: 45, shot: "Classic Portrait", expression: "Intense", lighting: "Rembrandt Studio Light", outfit: "Black turtleneck", description: "Simple textured background, high detail skin texture, serious art portrait" },
-
-  // --- TECHNICAL EDGE CASES (46-50) - TO PUSH THE SCORE TO 9.5/10 ---
-  { 
-    id: 46, 
-    shot: "Extreme Macro Close-Up", 
-    expression: "Neutral", 
-    lighting: "Soft Ring Light", 
-    outfit: "None (Focus on Eye)", 
-    description: "Extreme close-up on one eye and nose bridge, distinct iris texture, skin pores visible, eyelashes in sharp focus, 100mm macro lens." 
-  },
-  { 
-    id: 47, 
-    shot: "High Angle (CCTV/Drone)", 
-    expression: "Looking Up", 
-    lighting: "Industrial Overhead", 
-    outfit: "Winter Coat", 
-    description: "Security camera view from ceiling corner, looking down at subject walking, foreshortening perspective." 
-  },
-  { 
-    id: 48, 
-    shot: "Low Angle (Worm's Eye)", 
-    expression: "Dominant", 
-    lighting: "Backlit Sun", 
-    outfit: "Power Suit", 
-    description: "Camera on the ground looking up, subject towering over camera, blue sky background." 
-  },
-  { 
-    id: 49, 
-    shot: "Motion Blur Action", 
-    expression: "Urgent", 
-    lighting: "City Night Streaks", 
-    outfit: "Running gear", 
-    description: "Subject running/walking fast, background streaked with motion blur, dynamic energy." 
-  },
-  { 
-    id: 50, 
-    shot: "Silhouette / Backlit", 
-    expression: "Unknown", 
-    lighting: "Bright White Studio Background", 
-    outfit: "Tight fitting bodysuit", 
-    description: "Subject in shadow, focus on body outline and posture, complete silhouette against bright light." 
-  }
+  { id: 45, shot: "Classic Portrait", expression: "Intense", lighting: "Rembrandt Studio Light", outfit: "Black turtleneck", description: "Simple textured background, high detail skin texture, serious art portrait" }
 ];
 
-// --- ACTIVE: NEW EXTENSION ITEMS (51-56) ---
-// Focused on Swimwear (Body Structure) and Macro Details (Texture Mapping)
-export const DATASET_PLAN: DatasetItem[] = [
-  // Swimwear / Body Structure
-  { 
-    id: 51, 
-    shot: "Poolside Lounging", 
-    expression: "Relaxed", 
-    lighting: "Golden Hour Sun", 
-    outfit: "Red bikini", 
-    description: "Lying on a white lounge chair, sunglasses on head, pool water background, soft warm lighting, full body shot showing limb proportions." 
-  },
-  { 
-    id: 52, 
-    shot: "Beach Water Edge", 
-    expression: "Joyful", 
-    lighting: "High Noon Sun", 
-    outfit: "Black one-piece swimsuit", 
-    description: "Walking out of the ocean, water dripping, wet hair, sharp sunlight, ocean background, dynamic movement." 
-  },
-  { 
-    id: 53, 
-    shot: "Sunbathing Top-Down", 
-    expression: "Closed Eyes", 
-    lighting: "Dappled Shade (Palm Tree)", 
-    outfit: "White bikini", 
-    description: "Lying on a towel, hat covering part of face, tropical shadows on skin, relaxation, high angle view looking down." 
-  },
+// --- VIRAL / CINEMATIC EXPANSION (46-51) ---
+const VIRAL_ITEMS: DatasetItem[] = [
+    {
+        id: 46,
+        shot: "Dune Desert Sci-Fi",
+        expression: "Intense",
+        lighting: "Harsh Desert Sun",
+        outfit: "Distressed sci-fi stillsuit",
+        description: "Standing in vast desert with giant sand dunes, glowing blue eyes, heat haze, epic scale, IMAX quality, Dune movie style."
+    },
+    {
+        id: 47,
+        shot: "Cyberpunk City",
+        expression: "Cool",
+        lighting: "Neon Pink and Blue",
+        outfit: "Transparent plastic raincoat over tactical gear",
+        description: "Futuristic city street at night, raining heavily, neon reflections on wet pavement, high-tech visor, Blade Runner aesthetic."
+    },
+    {
+        id: 48,
+        shot: "Wes Anderson Hotel",
+        expression: "Deadpan",
+        lighting: "Flat Pastel Lighting",
+        outfit: "Vintage red beret and yellow coat",
+        description: "Perfectly symmetrical shot in front of a pink retro hotel, holding a vintage suitcase, pastel color palette, whimsical style."
+    },
+    {
+        id: 49,
+        shot: "90s Paparazzi Flash",
+        expression: "Surprised",
+        lighting: "Direct Camera Flash",
+        outfit: "Black slip dress and sunglasses",
+        description: "Leaving a luxury nightclub at night, grainy film texture, blurred crowd background, holding hand up to block camera, vintage scandal vibe."
+    },
+    {
+        id: 50,
+        shot: "Fallout Wasteland",
+        expression: "Determined",
+        lighting: "Sunny Post-Apocalyptic",
+        outfit: "Blue and yellow jumpsuit with armor",
+        description: "Wandering a wasteland near a retro gas station, dusty atmosphere, retro-futuristic, highly detailed texture."
+    },
+    {
+        id: 51,
+        shot: "Game of Thrones Winter",
+        expression: "Noble",
+        lighting: "Gloomy Overcast",
+        outfit: "Medieval fur cloak and leather armor",
+        description: "Standing in the courtyard of a stone castle, snow falling, dragon silhouette in the grey sky, cinematic medieval fantasy."
+    }
+];
 
-  // Extreme Close-Ups / Texture Mapping
-  { 
-    id: 54, 
-    shot: "Macro Eye Detail", 
-    expression: "Neutral", 
-    lighting: "Soft Window Light", 
-    outfit: "None (Face Focus)", 
-    description: "Extreme macro close-up of left eye, iris texture, eyelashes, skin pores and freckles clearly visible, 100mm macro lens." 
-  },
-  { 
-    id: 55, 
-    shot: "Macro Lip Texture", 
-    expression: "Slight Part", 
-    lighting: "Studio Ring Light", 
-    outfit: "None (Face Focus)", 
-    description: "Extreme close-up of lips, natural texture, no makeup, fine lines and hydration visible, sharp focus on mouth area." 
-  },
-  { 
-    id: 56, 
-    shot: "Wet Skin Portrait", 
-    expression: "Intense", 
-    lighting: "Sunset Backlight", 
-    outfit: "Swimsuit straps visible", 
-    description: "Post-swim close-up, water droplets on face and shoulders, glowing skin, wet hair slicked back, golden rim lighting." 
-  }
+// Export the combined list
+export const DATASET_PLAN: DatasetItem[] = [
+    ...CORE_ITEMS,
+    ...VIRAL_ITEMS
 ];
