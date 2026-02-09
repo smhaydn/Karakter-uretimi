@@ -18,7 +18,17 @@ export interface AnchorImage {
   score: number;
 }
 
-export type ReferenceSlotId = 'front' | 'side' | 'threeQuarter' | 'expression' | 'side90';
+// Updated slots: Character (front-side90) + Product (1-4)
+export type ReferenceSlotId = 
+  | 'front' 
+  | 'side' 
+  | 'threeQuarter' 
+  | 'expression' 
+  | 'side90' 
+  | 'product1' 
+  | 'product2' 
+  | 'product3' 
+  | 'product4';
 
 export interface ReferenceMap {
   [key: string]: string | null; // slotId -> base64

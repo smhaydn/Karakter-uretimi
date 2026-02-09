@@ -17,7 +17,10 @@ import {
   Play,
   Square,
   Zap,
-  LayoutGrid
+  LayoutGrid,
+  ShoppingBag,
+  Shirt,
+  User2
 } from 'lucide-react';
 
 import JSZip from 'jszip';
@@ -40,13 +43,21 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 type Mode = 'FREE' | 'DATASET';
 type AutoPilotPhase = 'IDLE' | 'SKETCHING' | 'GENERATING' | 'JUDGING' | 'CAPTIONING' | 'WAITING';
 
-// Define the 5 reference slots
-const REFERENCE_SLOTS: { id: ReferenceSlotId; label: string; subLabel: string; required: boolean }[] = [
-  { id: 'front', label: '1. Front View', subLabel: 'Passport style (Essential)', required: true },
-  { id: 'side', label: '2. Side Profile', subLabel: 'General Profile', required: false },
-  { id: 'threeQuarter', label: '3. 3/4 Angle', subLabel: 'Depth reference', required: false },
-  { id: 'expression', label: '4. Expression', subLabel: 'Smiling/Laughing', required: false },
-  { id: 'side90', label: '5. 90° Side View', subLabel: 'Strict 90° Angle', required: false },
+// 1. CHARACTER SLOTS (The Face)
+const CHARACTER_SLOTS: { id: ReferenceSlotId; label: string; subLabel: string; required: boolean }[] = [
+  { id: 'front', label: '1. Front View', subLabel: 'Passport (Main)', required: true },
+  { id: 'side', label: '2. Side Profile', subLabel: 'Structure', required: false },
+  { id: 'threeQuarter', label: '3. 3/4 Angle', subLabel: 'Depth', required: false },
+  { id: 'expression', label: '4. Expression', subLabel: 'Smile/Laugh', required: false },
+  { id: 'side90', label: '5. 90° Side', subLabel: 'Jawline', required: false },
+];
+
+// 2. PRODUCT SLOTS (The Outfit)
+const PRODUCT_SLOTS: { id: ReferenceSlotId; label: string; subLabel: string; required: boolean }[] = [
+    { id: 'product1', label: 'Main Look', subLabel: 'Front/Full', required: false }, // Required logic handled in code
+    { id: 'product2', label: 'Detail 1', subLabel: 'Texture/Fabric', required: false },
+    { id: 'product3', label: 'Detail 2', subLabel: 'Back/Side', required: false },
+    { id: 'product4', label: 'Detail 3', subLabel: 'Alternative', required: false },
 ];
 
 function App() {
@@ -59,7 +70,11 @@ function App() {
     side: null,
     threeQuarter: null,
     expression: null,
-    side90: null
+    side90: null,
+    product1: null,
+    product2: null,
+    product3: null,
+    product4: null
   });
   
   // Mode State
@@ -99,7 +114,10 @@ function App() {
   const [isRawMode, setIsRawMode] = useState(true);
 
   // Helper: Check if we have the minimum required reference
-  const hasRequiredReference = !!referenceImages.front;
+  const hasFaceReference = !!referenceImages.front;
+  const hasProductReference = !!referenceImages.product1; 
+  // Allow generation if at least Face is present. Product is optional but recommended for brand.
+  const canGenerate = hasFaceReference; 
 
   const handleImageUpdate = (id: string, base64: string | null) => {
     setReferenceImages(prev => ({
@@ -116,7 +134,7 @@ function App() {
   // --- Auto-Pilot Loop ---
   const runAutoPilotStep = async () => {
      // Use Ref for immediate check
-     if (!isAutoPilotRef.current || !hasRequiredReference) return;
+     if (!isAutoPilotRef.current || !hasFaceReference) return;
 
      // Use Ref for index to avoid stale closures
      const currentIndex = datasetIndexRef.current;
@@ -146,7 +164,12 @@ function App() {
          setPilotPhase('GENERATING');
          console.log(`[AutoPilot] Phase 2: Generating Final Image...`);
          
-         const structuredPrompt = `${item.shot} of a woman, ${item.expression} expression, wearing ${item.outfit}, ${item.lighting} lighting. ${item.description}`;
+         // If a product reference is loaded, we override the outfit description
+         // We check if ANY product slot is filled to trigger "Product Mode"
+         const isProductMode = !!(referenceImages.product1 || referenceImages.product2 || referenceImages.product3 || referenceImages.product4);
+         const outfitDesc = isProductMode ? "the specific garment shown in the Fashion Atelier images" : item.outfit;
+
+         const structuredPrompt = `${item.shot} of a woman, ${item.expression} expression, wearing ${outfitDesc}, ${item.lighting} lighting. ${item.description}`;
          
          const images = await generatePersonaImage({
             prompt: structuredPrompt,
@@ -246,7 +269,7 @@ function App() {
   };
 
   const startAutoPilot = () => {
-    if (!hasRequiredReference) {
+    if (!hasFaceReference) {
         alert("Please upload at least the Front View reference.");
         return;
     }
@@ -271,7 +294,7 @@ function App() {
 
   // --- Handlers ---
   const handleFreeGenerate = async () => {
-    if (!hasRequiredReference) {
+    if (!hasFaceReference) {
       alert("Please upload at least the Front View (Slot 1) reference.");
       return;
     }
@@ -412,23 +435,24 @@ function App() {
             {/* Left Sidebar: Controls */}
             <div className="lg:col-span-4 space-y-6">
               
-              {/* Reference Grid Section */}
+              {/* SECTION 1: CHARACTER IDENTITY */}
               <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-4 space-y-4">
                 <div className="flex items-center justify-between">
                     <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                        <span className="w-1 h-4 bg-violet-500 rounded-full"></span>
-                        Character Sheet (Multi-View)
+                        <div className="bg-blue-500/20 p-1.5 rounded-lg">
+                            <User2 size={14} className="text-blue-400"/>
+                        </div>
+                        Character Identity
                     </h2>
-                    <div className="flex items-center gap-1.5 text-[10px] text-neutral-400 bg-neutral-800 px-2 py-1 rounded">
-                        <LayoutGrid size={10} />
-                        <span>5 Slots</span>
+                    <div className="text-[10px] text-neutral-500 bg-neutral-800 px-2 py-1 rounded">
+                        Face Refs
                     </div>
                 </div>
                 
-                {/* 5-Slot Grid */}
-                <div className="grid grid-cols-2 gap-2">
-                    {REFERENCE_SLOTS.map((slot, index) => (
-                        <div key={slot.id} className={index === 4 ? "col-span-2" : ""}>
+                {/* 5-Slot Character Grid */}
+                <div className="grid grid-cols-3 gap-2">
+                    {CHARACTER_SLOTS.map((slot, idx) => (
+                        <div key={slot.id} className={`${idx === 0 ? 'col-span-3' : 'col-span-1'} relative`}>
                             <ImageUploader 
                                 id={slot.id}
                                 label={slot.label}
@@ -441,11 +465,52 @@ function App() {
                     ))}
                 </div>
                 
-                {!hasRequiredReference && (
+                {!hasFaceReference && (
                     <div className="text-xs text-red-400 bg-red-400/10 p-2 rounded text-center">
-                        Upload the "Front View" to enable generation.
+                        Identity Missing: Upload "Front View"
                     </div>
                 )}
+              </div>
+
+              {/* SECTION 2: FASHION ATELIER (PRODUCT) */}
+              <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-4 space-y-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-violet-500/10 to-transparent rounded-bl-3xl -mr-2 -mt-2"></div>
+                
+                <div className="flex items-center justify-between relative z-10">
+                    <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <div className="bg-violet-500/20 p-1.5 rounded-lg">
+                            <Shirt size={14} className="text-violet-400"/>
+                        </div>
+                        Fashion Atelier
+                    </h2>
+                    <div className="flex items-center gap-1.5 text-[10px] text-violet-300 bg-violet-900/20 px-2 py-1 rounded border border-violet-500/20">
+                        <ShoppingBag size={10} />
+                        <span>Product Sheet</span>
+                    </div>
+                </div>
+                
+                {/* 4-Slot Product Grid */}
+                <div className="grid grid-cols-2 gap-2 relative z-10">
+                    {PRODUCT_SLOTS.map((slot) => (
+                        <div key={slot.id} className="relative">
+                            <ImageUploader 
+                                id={slot.id}
+                                label={slot.label}
+                                subLabel={slot.subLabel}
+                                isRequired={slot.required} // Only 1st is technically required if doing product shot
+                                selectedImage={referenceImages[slot.id]}
+                                onImageSelected={handleImageUpdate}
+                            />
+                            {/* Visual indicator for required product slot */}
+                            {slot.id === 'product1' && !referenceImages[slot.id] && (
+                                <div className="absolute top-2 right-2 w-2 h-2 bg-violet-500 rounded-full animate-pulse"></div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+                <div className="text-[10px] text-neutral-500 relative z-10">
+                    * Upload main product photo first. Add details for better 3D understanding.
+                </div>
               </div>
 
               {/* Mode Selection */}
@@ -546,7 +611,7 @@ function App() {
                         <div className="absolute bottom-4 right-4">
                             <button
                                 onClick={handleFreeGenerate}
-                                disabled={isGenerating || !hasRequiredReference || !prompt.trim()}
+                                disabled={isGenerating || !canGenerate || !prompt.trim()}
                                 className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold text-white shadow-lg transition-all ${isGenerating ? 'bg-neutral-800 cursor-not-allowed opacity-80' : 'bg-white text-black hover:scale-105'}`}
                             >
                                 {isGenerating ? <RefreshCw className="animate-spin" size={18} /> : <Wand2 size={18} />}
@@ -643,7 +708,7 @@ function App() {
                         <div className="mt-6 flex items-center justify-end gap-4 relative z-10">
                             <button
                                 onClick={isAutoPilot ? stopAutoPilot : startAutoPilot}
-                                disabled={datasetIndex >= DATASET_PLAN.length || (!hasRequiredReference && !isAutoPilot)}
+                                disabled={datasetIndex >= DATASET_PLAN.length || (!canGenerate && !isAutoPilot)}
                                 className={`
                                     flex items-center space-x-2 px-5 py-3 rounded-xl font-semibold transition-all border w-full justify-center
                                     ${isAutoPilot 
