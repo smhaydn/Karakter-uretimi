@@ -274,10 +274,15 @@ export const generatePersonaImage = async (
 export const evaluateImageQuality = async (
     imageBase64: string
 ): Promise<number> => {
+    // Safety check: ensure valid string input
+    if (!imageBase64 || typeof imageBase64 !== 'string') return 0;
+    
     const apiKey = await ensureApiKey();
     if (!apiKey) return 0;
     const ai = new GoogleGenAI({ apiKey });
-    const base64Data = imageBase64.split(',')[1] || imageBase64;
+    
+    // Safe split to get base64 data
+    const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
     const prompt = `Rate (1-10) for LoRA dataset: Anatomical correctness, texture realism, adherence to prompt. Return ONLY integer.`;
 
@@ -297,10 +302,15 @@ export const generateVisionCaption = async (
   imageBase64: string,
   triggerWord: string
 ): Promise<string> => {
+  // Safety check: ensure valid string input
+  if (!imageBase64 || typeof imageBase64 !== 'string') return "";
+  
   const apiKey = await ensureApiKey();
   if (!apiKey) return "";
   const ai = new GoogleGenAI({ apiKey });
-  const base64Data = imageBase64.split(',')[1] || imageBase64;
+  
+  // Safe split to get base64 data
+  const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
   
   const prompt = `Write a comma-separated caption for AI training. Start with: "${triggerWord}". Describe View, Subject, Pose, Outfit, Lighting.`;
 
